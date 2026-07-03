@@ -1,0 +1,48 @@
+{
+  "project_info": {
+    "project_number": "706164682164",
+    "project_id": "taraqqiyot-teaching-center",
+    "storage_bucket": "taraqqiyot-teaching-center.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:706164682164:android:1abfce785908d7c7a7d6e1",
+        "android_client_info": {
+          "package_name": "uz.taraqqiyot.mobile"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyA0_qQqK0TtpVDhGU5Kuqy0na20FkVkiYs"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:706164682164:android:23ab073ca0b0c649a7d6e1",
+        "android_client_info": {
+          "package_name": "uz.taraqqiyot.teachingcenter"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyA0_qQqK0TtpVDhGU5Kuqy0na20FkVkiYs"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
