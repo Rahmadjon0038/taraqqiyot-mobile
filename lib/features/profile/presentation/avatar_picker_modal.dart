@@ -145,16 +145,8 @@ class _AvatarPickerSheetState extends State<_AvatarPickerSheet> {
               final avatars = snapshot.data ?? avatarOptions;
               final selectedKey = _selectedKey ?? widget.session.user.avatarKey;
 
-              if (snapshot.connectionState == ConnectionState.waiting &&
-                  avatars.isEmpty) {
-                return const SizedBox(
-                  height: 220,
-                  child: Center(
-                    child: CircularProgressIndicator(
-                      color: AppTheme.brandColor,
-                    ),
-                  ),
-                );
+              if (snapshot.connectionState == ConnectionState.waiting) {
+                return const _AvatarGridSkeleton();
               }
 
               return GridView.builder(
@@ -163,7 +155,7 @@ class _AvatarPickerSheetState extends State<_AvatarPickerSheet> {
                 physics: const NeverScrollableScrollPhysics(),
                 gridDelegate:
                     const SliverGridDelegateWithFixedCrossAxisCount(
-                      crossAxisCount: 3,
+                      crossAxisCount: 4,
                       mainAxisSpacing: 10,
                       crossAxisSpacing: 10,
                       childAspectRatio: 1.02,
@@ -206,6 +198,87 @@ class _AvatarPickerSheetState extends State<_AvatarPickerSheet> {
           ),
         ],
       ),
+    );
+  }
+}
+
+class _AvatarGridSkeleton extends StatelessWidget {
+  const _AvatarGridSkeleton();
+
+  @override
+  Widget build(BuildContext context) {
+    return GridView.builder(
+      itemCount: 8,
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 4,
+        mainAxisSpacing: 10,
+        crossAxisSpacing: 10,
+        childAspectRatio: 1.02,
+      ),
+      itemBuilder: (context, index) {
+        return const _AvatarSkeletonTile();
+      },
+    );
+  }
+}
+
+class _AvatarSkeletonTile extends StatefulWidget {
+  const _AvatarSkeletonTile();
+
+  @override
+  State<_AvatarSkeletonTile> createState() => _AvatarSkeletonTileState();
+}
+
+class _AvatarSkeletonTileState extends State<_AvatarSkeletonTile>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1200),
+    )..repeat(reverse: true);
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _controller,
+      builder: (context, child) {
+        final value = 0.08 + (_controller.value * 0.06);
+        return Container(
+          decoration: BoxDecoration(
+            color: Color.lerp(
+              const Color(0xFFF3F4F6),
+              const Color(0xFFE9ECF2),
+              value,
+            ),
+            borderRadius: BorderRadius.circular(999),
+          ),
+          child: const Center(
+            child: SizedBox(
+              width: 22,
+              height: 22,
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  color: Color(0xFFE5E7EB),
+                  shape: BoxShape.circle,
+                ),
+              ),
+            ),
+          ),
+        );
+      },
     );
   }
 }

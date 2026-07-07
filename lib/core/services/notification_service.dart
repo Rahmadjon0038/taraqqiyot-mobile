@@ -1,13 +1,17 @@
 import 'dart:convert';
+import 'dart:async';
 
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:http/http.dart' as http;
 
 import '../../firebase_options.dart';
+import '../../features/auth/models/auth_session.dart';
 import '../../features/notifications/presentation/notification_detail_page.dart';
+import '../config/api_config.dart';
 
 @pragma('vm:entry-point')
 Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
@@ -41,9 +45,13 @@ class NotificationService {
   final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
   final FlutterLocalNotificationsPlugin _localNotifications =
       FlutterLocalNotificationsPlugin();
+  final ValueNotifier<int> unreadCount = ValueNotifier<int>(0);
   bool _initialized = false;
   bool _firebaseEnabled = false;
+  bool _refreshingUnreadCount = false;
+  String? _boundAccessToken;
   Map<String, dynamic>? _pendingNotificationData;
+  StreamSubscription<String>? _tokenRefreshSubscription;
 
   Future<void> init({required bool firebaseEnabled}) async {
     if (_initialized) return;
@@ -61,11 +69,180 @@ class NotificationService {
     await _configureForegroundPresentation();
     await _listenToForegroundMessages();
     await _listenToTapEvents();
+    await _listenToTokenRefresh();
     await _printFcmToken();
   }
 
+  Future<void> bindSession(AuthSession? session) async {
+    final accessToken = session?.accessToken.trim() ?? '';
+    if (accessToken.isEmpty) {
+      clearSession();
+      return;
+    }
+
+    _boundAccessToken = accessToken;
+    await _registerPushToken(accessToken);
+    await refreshUnreadCount(accessToken: accessToken);
+  }
+
+  void clearSession() {
+    _boundAccessToken = null;
+    unreadCount.value = 0;
+  }
+
+  Future<void> refreshUnreadCount({String? accessToken}) async {
+    final token = (accessToken ?? _boundAccessToken ?? '').trim();
+    if (token.isEmpty || _refreshingUnreadCount) return;
+
+    _refreshingUnreadCount = true;
+    try {
+      final response = await http
+          .get(
+            Uri.parse('${ApiConfig.baseUrl}/api/notifications/unread-count'),
+            headers: {'Authorization': 'Bearer $token'},
+          )
+          .timeout(const Duration(seconds: 10));
+
+      final payload = _decodeResponse(response);
+      if (response.statusCode >= 200 && response.statusCode < 300) {
+        final data = payload['data'];
+        final unread = data is Map
+            ? _asInt(Map<String, dynamic>.from(data)['unread_count'])
+            : _asInt(payload['unread_count']);
+        unreadCount.value = unread;
+      }
+    } catch (error) {
+      debugPrint('Failed to refresh unread count: $error');
+    } finally {
+      _refreshingUnreadCount = false;
+    }
+  }
+
+  Future<List<NotificationRecord>> fetchNotifications(
+    String accessToken, {
+    int page = 1,
+    int limit = 20,
+  }) async {
+    final response = await http
+        .get(
+          Uri.parse(
+            '${ApiConfig.baseUrl}/api/notifications?page=$page&limit=$limit',
+          ),
+          headers: {'Authorization': 'Bearer $accessToken'},
+        )
+        .timeout(const Duration(seconds: 12));
+
+    final payload = _decodeResponse(response);
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      throw Exception(
+        payload['message']?.toString() ??
+            payload['error']?.toString() ??
+            'Bildirishnomalar yuklanmadi',
+      );
+    }
+
+    final data = payload['data'];
+    final notificationsRaw = data is Map
+        ? Map<String, dynamic>.from(data)['notifications']
+        : payload['notifications'];
+
+    if (notificationsRaw is! List) {
+      return const <NotificationRecord>[];
+    }
+
+    return notificationsRaw
+        .whereType<Map>()
+        .map(
+          (item) =>
+              NotificationRecord.fromJson(Map<String, dynamic>.from(item)),
+        )
+        .toList();
+  }
+
+  Future<NotificationRecord?> markNotificationRead(
+    String accessToken,
+    int notificationId,
+  ) async {
+    final response = await http
+        .patch(
+          Uri.parse(
+            '${ApiConfig.baseUrl}/api/notifications/$notificationId/read',
+          ),
+          headers: {'Authorization': 'Bearer $accessToken'},
+        )
+        .timeout(const Duration(seconds: 10));
+
+    final payload = _decodeResponse(response);
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      throw Exception(
+        payload['message']?.toString() ??
+            payload['error']?.toString() ??
+            'Bildirishnoma o‘qilgan deb belgilanmadi',
+      );
+    }
+
+    await refreshUnreadCount(accessToken: accessToken);
+
+    final data = payload['data'];
+    if (data is Map) {
+      return NotificationRecord.fromJson(Map<String, dynamic>.from(data));
+    }
+    return null;
+  }
+
+  Future<int> markAllNotificationsRead(String accessToken) async {
+    final response = await http
+        .patch(
+          Uri.parse('${ApiConfig.baseUrl}/api/notifications/read-all'),
+          headers: {'Authorization': 'Bearer $accessToken'},
+        )
+        .timeout(const Duration(seconds: 10));
+
+    final payload = _decodeResponse(response);
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      throw Exception(
+        payload['message']?.toString() ??
+            payload['error']?.toString() ??
+            'Barchasi o‘qilgan deb belgilanmadi',
+      );
+    }
+
+    await refreshUnreadCount(accessToken: accessToken);
+
+    final data = payload['data'];
+    if (data is Map) {
+      return _asInt(Map<String, dynamic>.from(data)['updated_count']);
+    }
+    return 0;
+  }
+
+  Future<void> deleteNotification(
+    String accessToken,
+    int notificationId,
+  ) async {
+    final response = await http
+        .delete(
+          Uri.parse('${ApiConfig.baseUrl}/api/notifications/$notificationId'),
+          headers: {'Authorization': 'Bearer $accessToken'},
+        )
+        .timeout(const Duration(seconds: 10));
+
+    final payload = _decodeResponse(response);
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      throw Exception(
+        payload['message']?.toString() ??
+            payload['error']?.toString() ??
+            'Bildirishnoma o‘chirilmadi',
+      );
+    }
+
+    await refreshUnreadCount(accessToken: accessToken);
+  }
+
   Future<void> _initializeLocalNotifications() async {
-    const androidSettings = AndroidInitializationSettings('@mipmap/ic_launcher');
+    const androidSettings = AndroidInitializationSettings(
+      '@mipmap/ic_launcher',
+    );
     const darwinSettings = DarwinInitializationSettings(
       requestAlertPermission: false,
       requestBadgePermission: false,
@@ -101,7 +278,9 @@ class NotificationService {
     await androidImplementation?.requestNotificationsPermission();
 
     final iosImplementation = _localNotifications
-        .resolvePlatformSpecificImplementation<IOSFlutterLocalNotificationsPlugin>();
+        .resolvePlatformSpecificImplementation<
+          IOSFlutterLocalNotificationsPlugin
+        >();
     await iosImplementation?.requestPermissions(
       alert: true,
       badge: true,
@@ -109,7 +288,9 @@ class NotificationService {
     );
 
     final macosImplementation = _localNotifications
-        .resolvePlatformSpecificImplementation<MacOSFlutterLocalNotificationsPlugin>();
+        .resolvePlatformSpecificImplementation<
+          MacOSFlutterLocalNotificationsPlugin
+        >();
     await macosImplementation?.requestPermissions(
       alert: true,
       badge: true,
@@ -118,11 +299,12 @@ class NotificationService {
   }
 
   Future<void> _configureForegroundPresentation() async {
-    await FirebaseMessaging.instance.setForegroundNotificationPresentationOptions(
-      alert: true,
-      badge: true,
-      sound: true,
-    );
+    await FirebaseMessaging.instance
+        .setForegroundNotificationPresentationOptions(
+          alert: true,
+          badge: true,
+          sound: true,
+        );
   }
 
   Future<void> _listenToForegroundMessages() async {
@@ -147,14 +329,60 @@ class NotificationService {
     debugPrint('FCM token: $token');
   }
 
+  Future<void> _listenToTokenRefresh() async {
+    _tokenRefreshSubscription?.cancel();
+    _tokenRefreshSubscription = FirebaseMessaging.instance.onTokenRefresh
+        .listen(
+          (token) async {
+            debugPrint('FCM token refreshed: $token');
+            final accessToken = (_boundAccessToken ?? '').trim();
+            if (accessToken.isEmpty) return;
+            await _registerPushToken(accessToken, overrideToken: token);
+          },
+          onError: (error) {
+            debugPrint('FCM token refresh error: $error');
+          },
+        );
+  }
+
+  Future<void> _registerPushToken(
+    String accessToken, {
+    String? overrideToken,
+  }) async {
+    if (!_firebaseEnabled) return;
+
+    try {
+      final token =
+          (overrideToken ?? await FirebaseMessaging.instance.getToken())
+              ?.trim();
+      if (token == null || token.trim().isEmpty) return;
+
+      final response = await http
+          .patch(
+            Uri.parse('${ApiConfig.baseUrl}/api/users/push-token'),
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': 'Bearer $accessToken',
+            },
+            body: jsonEncode({'token': token}),
+          )
+          .timeout(const Duration(seconds: 10));
+
+      if (response.statusCode < 200 || response.statusCode >= 300) {
+        debugPrint('Push token registration failed: ${response.body}');
+      }
+    } catch (error) {
+      debugPrint('Push token registration error: $error');
+    }
+  }
+
   Future<void> _showForegroundNotification(RemoteMessage message) async {
     final notification = message.notification;
     final title =
         notification?.title ??
         message.data['title']?.toString() ??
         'Taraqqiyot';
-    final body =
-        notification?.body ?? message.data['body']?.toString() ?? '';
+    final body = notification?.body ?? message.data['body']?.toString() ?? '';
     final data = <String, dynamic>{...message.data};
 
     await _localNotifications.show(
@@ -253,5 +481,76 @@ class NotificationService {
 
     _pendingNotificationData = null;
     handleNotificationData(pending);
+  }
+
+  static int _asInt(Object? value, [int fallback = 0]) {
+    if (value is int) return value;
+    if (value is String) return int.tryParse(value) ?? fallback;
+    if (value is double) return value.toInt();
+    return fallback;
+  }
+
+  Map<String, dynamic> _decodeResponse(http.Response response) {
+    if (response.body.isEmpty) {
+      return <String, dynamic>{};
+    }
+
+    final decoded = jsonDecode(response.body);
+    if (decoded is Map<String, dynamic>) {
+      return decoded;
+    }
+    if (decoded is Map) {
+      return Map<String, dynamic>.from(decoded);
+    }
+    return <String, dynamic>{'data': decoded};
+  }
+}
+
+class NotificationRecord {
+  const NotificationRecord({
+    required this.id,
+    required this.type,
+    required this.title,
+    required this.body,
+    required this.data,
+    required this.isRead,
+    required this.createdAt,
+  });
+
+  final int id;
+  final String type;
+  final String title;
+  final String body;
+  final Map<String, dynamic> data;
+  final bool isRead;
+  final String createdAt;
+
+  factory NotificationRecord.fromJson(Map<String, dynamic> json) {
+    final rawData = json['data'];
+    Map<String, dynamic> data = const <String, dynamic>{};
+    if (rawData is Map) {
+      data = Map<String, dynamic>.from(rawData);
+    } else if (rawData is String && rawData.trim().isNotEmpty) {
+      try {
+        final decoded = jsonDecode(rawData);
+        if (decoded is Map) {
+          data = Map<String, dynamic>.from(decoded);
+        }
+      } catch (_) {
+        data = <String, dynamic>{'value': rawData};
+      }
+    }
+
+    return NotificationRecord(
+      id: NotificationService._asInt(json['id']),
+      type: json['type']?.toString() ?? 'payment',
+      title: json['title']?.toString() ?? '',
+      body: json['body']?.toString() ?? '',
+      data: data,
+      isRead:
+          json['is_read'] == true ||
+          json['is_read']?.toString().toLowerCase() == 'true',
+      createdAt: json['created_at']?.toString() ?? '',
+    );
   }
 }

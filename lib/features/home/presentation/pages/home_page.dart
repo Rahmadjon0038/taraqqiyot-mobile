@@ -5,6 +5,10 @@ import '../../../auth/models/auth_session.dart';
 import '../../../auth/models/auth_user.dart';
 import '../../../profile/presentation/avatar_picker_modal.dart';
 import '../../../profile/presentation/widgets/profile_avatar.dart';
+import '../../../student/presentation/student_attendance_page.dart';
+import '../../../student/presentation/student_groups_page.dart';
+import '../../../student/presentation/student_payments_page.dart';
+import '../../../../core/services/notification_service.dart';
 import '../widgets/home_bottom_navigation.dart';
 import 'settings_page.dart';
 import '../../../notifications/presentation/notification_page.dart';
@@ -45,35 +49,48 @@ class _HomePageState extends State<HomePage> {
     return Scaffold(
       backgroundColor: const Color(0xFFF6F7FB),
       body: SafeArea(
-        child: Column(
-          children: [
-            _TopHeader(
-              firstName: firstName,
-              user: user,
-              session: widget.session,
-              onSessionUpdated: widget.onSessionUpdated,
-            ),
-            Expanded(
-              child: AnimatedSwitcher(
-                duration: const Duration(milliseconds: 240),
-                switchInCurve: Curves.easeOut,
-                switchOutCurve: Curves.easeIn,
-                child: switch (_currentIndex) {
-                  0 => const _HomeCenterContent(key: ValueKey('home')),
-                  4 => SettingsPage(
-                    key: const ValueKey('settings'),
-                    session: widget.session,
-                    onLogout: widget.onLogout,
-                    onSessionUpdated: widget.onSessionUpdated,
-                  ),
-                  _ => _SectionPlaceholderPage(
-                    key: ValueKey('section-$_currentIndex'),
-                    title: _sectionTitles[_currentIndex],
-                  ),
-                },
+        bottom: false,
+        child: NestedScrollView(
+          headerSliverBuilder: (context, innerBoxIsScrolled) => [
+            SliverToBoxAdapter(
+              child: _TopHeader(
+                firstName: firstName,
+                user: user,
+                session: widget.session,
+                onSessionUpdated: widget.onSessionUpdated,
               ),
             ),
           ],
+          body: AnimatedSwitcher(
+            duration: const Duration(milliseconds: 240),
+            switchInCurve: Curves.easeOut,
+            switchOutCurve: Curves.easeIn,
+            child: switch (_currentIndex) {
+              0 => const _HomeCenterContent(key: ValueKey('home')),
+              1 => StudentGroupsPage(
+                key: const ValueKey('student-groups'),
+                session: widget.session,
+              ),
+              2 => StudentAttendancePage(
+                key: const ValueKey('student-attendance'),
+                session: widget.session,
+              ),
+              3 => StudentPaymentsPage(
+                key: const ValueKey('student-payments'),
+                session: widget.session,
+              ),
+              4 => SettingsPage(
+                key: const ValueKey('settings'),
+                session: widget.session,
+                onLogout: widget.onLogout,
+                onSessionUpdated: widget.onSessionUpdated,
+              ),
+              _ => _SectionPlaceholderPage(
+                key: ValueKey('section-$_currentIndex'),
+                title: _sectionTitles[_currentIndex],
+              ),
+            },
+          ),
         ),
       ),
       bottomNavigationBar: HomeBottomNavigation(
@@ -142,19 +159,26 @@ class _TopHeader extends StatelessWidget {
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: const TextStyle(
-                  fontSize: 20,
+                  fontSize: 18,
                   fontWeight: FontWeight.w800,
                   color: Color(0xFF182033),
                 ),
               ),
             ),
             const SizedBox(width: 6),
-            _TopActionButton(
-              icon: Icons.notifications_active_outlined,
-              showDot: true,
-              onPressed: () {
-                Navigator.of(context).push(
-                  MaterialPageRoute(builder: (_) => const NotificationPage()),
+            ValueListenableBuilder<int>(
+              valueListenable: NotificationService.instance.unreadCount,
+              builder: (context, unreadCount, _) {
+                return _TopActionButton(
+                  icon: Icons.notifications_active_outlined,
+                  badgeCount: unreadCount,
+                  onPressed: () {
+                    Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => NotificationPage(session: session),
+                      ),
+                    );
+                  },
                 );
               },
             ),
@@ -224,12 +248,12 @@ class _TopActionButton extends StatelessWidget {
   const _TopActionButton({
     required this.icon,
     required this.onPressed,
-    this.showDot = false,
+    this.badgeCount = 0,
   });
 
   final IconData icon;
   final VoidCallback onPressed;
-  final bool showDot;
+  final int badgeCount;
 
   @override
   Widget build(BuildContext context) {
@@ -256,16 +280,27 @@ class _TopActionButton extends StatelessWidget {
             icon: Icon(icon, color: const Color(0xFF182033), size: 22),
           ),
         ),
-        if (showDot)
+        if (badgeCount > 0)
           Positioned(
             right: 7,
             top: 7,
             child: Container(
-              width: 9,
-              height: 9,
-              decoration: const BoxDecoration(
+              constraints: const BoxConstraints(minWidth: 16, minHeight: 16),
+              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+              decoration: BoxDecoration(
                 color: AppTheme.brandColor,
-                shape: BoxShape.circle,
+                borderRadius: BorderRadius.circular(999),
+                border: Border.all(color: Colors.white, width: 1.5),
+              ),
+              child: Text(
+                badgeCount > 99 ? '99+' : badgeCount.toString(),
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  fontSize: 9,
+                  fontWeight: FontWeight.w800,
+                  color: Colors.white,
+                  height: 1,
+                ),
               ),
             ),
           ),

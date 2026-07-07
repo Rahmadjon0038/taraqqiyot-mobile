@@ -123,8 +123,8 @@ class AvatarGridTile extends StatelessWidget {
       borderRadius: BorderRadius.circular(999),
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 180),
-        width: 60,
-        height: 60,
+        width: 52,
+        height: 52,
         decoration: BoxDecoration(
           shape: BoxShape.circle,
           gradient: option.imageUrl == null
@@ -144,12 +144,12 @@ class AvatarGridTile extends StatelessWidget {
               ? Image.network(
                   option.imageUrl!,
                   fit: BoxFit.cover,
-                  width: 60,
-                  height: 60,
+                  width: 52,
+                  height: 52,
                   errorBuilder: (context, error, stackTrace) =>
-                      Icon(option.icon, color: Colors.white, size: 28),
+                      Icon(option.icon, color: Colors.white, size: 24),
                 )
-              : Icon(option.icon, color: Colors.white, size: 28),
+              : Icon(option.icon, color: Colors.white, size: 24),
         ),
       ),
     );

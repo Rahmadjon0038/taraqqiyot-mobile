@@ -5,8 +5,9 @@ import '../features/auth/data/auth_storage.dart';
 import '../features/auth/models/auth_session.dart';
 import '../features/auth/presentation/login_page.dart';
 import '../features/auth/presentation/splash_page.dart';
-import '../features/home/presentation/pages/home_page.dart';
+import '../features/home/presentation/pages/role_aware_home_page.dart';
 import '../features/notifications/presentation/notification_detail_page.dart';
+import '../features/profile/data/avatar_library_service.dart';
 import '../core/services/notification_service.dart';
 import 'theme/app_theme.dart';
 
@@ -20,6 +21,8 @@ class TaraqqiyotApp extends StatefulWidget {
 class _TaraqqiyotAppState extends State<TaraqqiyotApp> {
   final AuthService _authService = AuthService();
   final AuthStorage _authStorage = AuthStorage();
+  final AvatarLibraryService _avatarLibraryService =
+      const AvatarLibraryService();
 
   AuthSession? _session;
   bool _bootstrapping = true;
@@ -49,6 +52,7 @@ class _TaraqqiyotAppState extends State<TaraqqiyotApp> {
 
       if (savedSession == null) {
         if (!mounted) return;
+        NotificationService.instance.clearSession();
         setState(() {
           _session = null;
         });
@@ -66,6 +70,8 @@ class _TaraqqiyotAppState extends State<TaraqqiyotApp> {
         setState(() {
           _session = refreshedSession;
         });
+        await _warmAvatarRegistry(refreshedSession);
+        await NotificationService.instance.bindSession(refreshedSession);
       } catch (error) {
         final freshAccessToken = await _authService.refreshAccessToken(
           savedSession.refreshToken,
@@ -81,9 +87,12 @@ class _TaraqqiyotAppState extends State<TaraqqiyotApp> {
         setState(() {
           _session = refreshedSession;
         });
+        await _warmAvatarRegistry(refreshedSession);
+        await NotificationService.instance.bindSession(refreshedSession);
       }
     } catch (error) {
       await _authStorage.clearSession();
+      NotificationService.instance.clearSession();
       if (!mounted) return;
       setState(() {
         _session = null;
@@ -113,10 +122,13 @@ class _TaraqqiyotAppState extends State<TaraqqiyotApp> {
     setState(() {
       _session = fullSession;
     });
+    await _warmAvatarRegistry(fullSession);
+    await NotificationService.instance.bindSession(fullSession);
   }
 
   Future<void> _handleLogout() async {
     await _authStorage.clearSession();
+    NotificationService.instance.clearSession();
     if (!mounted) return;
     setState(() {
       _session = null;
@@ -129,6 +141,16 @@ class _TaraqqiyotAppState extends State<TaraqqiyotApp> {
     setState(() {
       _session = updatedSession;
     });
+    await _warmAvatarRegistry(updatedSession);
+    await NotificationService.instance.bindSession(updatedSession);
+  }
+
+  Future<void> _warmAvatarRegistry(AuthSession session) async {
+    try {
+      await _avatarLibraryService.fetchPublishedAvatars(session.accessToken);
+    } catch (_) {
+      // Avatar registry may already be warm or temporarily unavailable.
+    }
   }
 
   @override
@@ -168,7 +190,7 @@ class _TaraqqiyotAppState extends State<TaraqqiyotApp> {
                       key: const ValueKey('login'),
                       onLogin: _handleLogin,
                     )
-                  : HomePage(
+                  : RoleAwareHomePage(
                       key: const ValueKey('main-home'),
                       session: _session!,
                       onSessionUpdated: _handleSessionUpdated,
