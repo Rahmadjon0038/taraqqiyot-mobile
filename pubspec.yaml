@@ -40,9 +40,11 @@ dependencies:
   lucide_icons: ^0.257.0
   shared_preferences: ^2.3.2
   file_picker: ^8.1.2
+  video_player: ^2.9.2
   firebase_core: ^4.0.0
   firebase_messaging: ^16.0.0
   flutter_local_notifications: ^19.4.0
+  url_launcher: ^6.3.2
 
 dev_dependencies:
   flutter_test:
@@ -69,6 +71,15 @@ flutter:
   assets:
     - assets/authbg.png
     - assets/logo.png
+    - assets/ball.png
+    - assets/newbg.png
+    - assets/reyting.png
+    - assets/kraven.mp4
+    - assets/car1.mp4
+    - assets/edit.mp4
+    - assets/trent.mp4
+    - assets/enolla.mp4
+    - assets/kraven2.mp4
 
   # To add assets to your application, add an assets section, like this:
   # assets:

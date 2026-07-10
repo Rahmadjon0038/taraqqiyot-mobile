@@ -226,10 +226,16 @@ class _NotificationPageState extends State<NotificationPage> {
       final status = _attendanceStatusLabel(
         data['attendance_status']?.toString() ?? '',
       );
+      final markedAt = _createdAtLabel(
+        data['attendance_marked_at']?.toString().trim() ?? '',
+      );
       final parts = <String>[];
       if (groupName.isNotEmpty) parts.add(groupName);
       if (status.isNotEmpty && status != '-') {
-        parts.add('Davomat: $status');
+        parts.add(status);
+      }
+      if (markedAt.isNotEmpty) {
+        parts.add(markedAt);
       }
       if (parts.isNotEmpty) {
         return parts.join(' • ');

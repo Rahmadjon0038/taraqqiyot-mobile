@@ -540,60 +540,43 @@ class _MonthSelect extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: const Color(0xFFD4DAE6)),
-      ),
-      child: Row(
-        children: [
-          const Icon(
-            Icons.calendar_month_rounded,
-            size: 17,
-            color: Color(0xFF7B8495),
-          ),
-          const SizedBox(width: 7),
-          const Text(
-            'Oy',
-            style: TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.w700,
-              color: Color(0xFF445066),
-            ),
-          ),
-          const SizedBox(width: 8),
-          Expanded(
-            child: DropdownButtonHideUnderline(
-              child: DropdownButton<String>(
-                value: months.contains(selectedMonth)
-                    ? selectedMonth
-                    : months.first,
-                isExpanded: true,
-                icon: const Icon(Icons.keyboard_arrow_down_rounded, size: 18),
-                borderRadius: BorderRadius.circular(16),
-                items: months
-                    .map(
-                      (month) => DropdownMenuItem<String>(
-                        value: month,
-                        child: Text(
-                          _formatMonthLabel(month),
-                          style: const TextStyle(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                      ),
-                    )
-                    .toList(),
-                onChanged: (value) {
-                  if (value != null) onSelected(value);
-                },
+    return SizedBox(
+      height: 36,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(horizontal: 2),
+        itemCount: months.length,
+        separatorBuilder: (context, index) => const SizedBox(width: 8),
+        itemBuilder: (context, index) {
+          final month = months[index];
+          final selected = month == selectedMonth;
+          return InkWell(
+            onTap: () => onSelected(month),
+            borderRadius: BorderRadius.circular(999),
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 180),
+              padding: const EdgeInsets.symmetric(horizontal: 14),
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                color: selected ? AppTheme.brandColor : Colors.white,
+                borderRadius: BorderRadius.circular(999),
+                border: Border.all(
+                  color: selected
+                      ? AppTheme.brandColor
+                      : const Color(0xFFD4DAE6),
+                ),
+              ),
+              child: Text(
+                _formatMonthLabel(month),
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w800,
+                  color: selected ? Colors.white : const Color(0xFF4A5468),
+                ),
               ),
             ),
-          ),
-        ],
+          );
+        },
       ),
     );
   }

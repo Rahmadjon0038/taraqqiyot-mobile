@@ -21,6 +21,7 @@ class NotificationDetailPage extends StatelessWidget {
     final attendanceTeacher = _stringValue(data['teacher_name']);
     final attendanceSubject = _stringValue(data['subject_name']);
     final attendanceStatus = _stringValue(data['attendance_status']);
+    final attendanceMarkedAt = _stringValue(data['attendance_marked_at']);
     final paymentAmount = _extractPaymentAmount(data);
     final discountAmount = _extractDiscountAmount(data);
     final discountReason = _extractDiscountReason(payload);
@@ -31,6 +32,7 @@ class NotificationDetailPage extends StatelessWidget {
       attendanceTeacher: attendanceTeacher,
       attendanceSubject: attendanceSubject,
       attendanceStatus: attendanceStatus,
+      attendanceMarkedAt: attendanceMarkedAt,
       paymentAmount: paymentAmount,
       discountAmount: discountAmount,
       discountReason: discountReason,
@@ -125,8 +127,16 @@ class NotificationDetailPage extends StatelessWidget {
                       ] else if (type == 'attendance') ...[
                         _InfoChip(
                           icon: Icons.fact_check_rounded,
-                          title: 'Davomat',
+                          title: 'Holat',
                           value: _attendanceStatusLabel(attendanceStatus),
+                        ),
+                        const SizedBox(height: 8),
+                        _InfoChip(
+                          icon: Icons.schedule_rounded,
+                          title: 'Sana',
+                          value: attendanceMarkedAt.isNotEmpty
+                              ? attendanceMarkedAt
+                              : createdAtLabel,
                         ),
                       ],
                     ],
@@ -183,6 +193,13 @@ class NotificationDetailPage extends StatelessWidget {
                         value: _attendanceStatusLabel(attendanceStatus),
                         valueColor: _attendanceStatusColor(attendanceStatus),
                       ),
+                      if (attendanceMarkedAt.isNotEmpty) ...[
+                        const SizedBox(height: 10),
+                        _DetailRow(
+                          label: 'Sana',
+                          value: attendanceMarkedAt,
+                        ),
+                      ],
                     ]
                   : [
                       Text(
@@ -308,6 +325,7 @@ class NotificationDetailPage extends StatelessWidget {
     required String attendanceTeacher,
     required String attendanceSubject,
     required String attendanceStatus,
+    required String attendanceMarkedAt,
     required String paymentAmount,
     required String discountAmount,
     required String discountReason,
@@ -316,21 +334,15 @@ class NotificationDetailPage extends StatelessWidget {
   }) {
     if (type == 'attendance') {
       final parts = <String>[];
-      if (attendanceGroup.isNotEmpty) {
-        parts.add(attendanceGroup);
-      }
       final statusLabel = _attendanceStatusLabel(attendanceStatus);
       if (statusLabel.isNotEmpty) {
-        parts.add('Davomat: $statusLabel');
+        parts.add(statusLabel);
       }
-      if (attendanceSubject.isNotEmpty) {
-        parts.add('Fan: $attendanceSubject');
-      }
-      if (attendanceTeacher.isNotEmpty) {
-        parts.add('Teacher: $attendanceTeacher');
+      if (attendanceMarkedAt.isNotEmpty) {
+        parts.add(attendanceMarkedAt);
       }
       if (parts.isNotEmpty) {
-        return parts.join(' • ');
+        return parts.join('\n');
       }
       return fallbackBody;
     }

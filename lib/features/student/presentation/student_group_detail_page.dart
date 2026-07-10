@@ -22,11 +22,18 @@ class StudentGroupDetailPage extends StatefulWidget {
 class _StudentGroupDetailPageState extends State<StudentGroupDetailPage> {
   final StudentGroupsService _service = StudentGroupsService();
   late Future<StudentGroupDetails> _detailFuture;
+  late String _selectedMonth;
 
   @override
   void initState() {
     super.initState();
-    _detailFuture = _service.fetchMyGroupInfo(widget.session, widget.groupId);
+    final now = DateTime.now();
+    _selectedMonth = '${now.year}-${now.month.toString().padLeft(2, '0')}';
+    _detailFuture = _service.fetchMyGroupInfo(
+      widget.session,
+      widget.groupId,
+      month: _selectedMonth,
+    );
   }
 
   @override
@@ -37,62 +44,152 @@ class _StudentGroupDetailPageState extends State<StudentGroupDetailPage> {
 
   Future<void> _reload() async {
     setState(() {
-      _detailFuture = _service.fetchMyGroupInfo(widget.session, widget.groupId);
+      _detailFuture = _service.fetchMyGroupInfo(
+        widget.session,
+        widget.groupId,
+        month: _selectedMonth,
+      );
     });
     await _detailFuture;
+  }
+
+  void _selectMonth(String monthKey) {
+    if (monthKey == _selectedMonth) return;
+    setState(() {
+      _selectedMonth = monthKey;
+      _detailFuture = _service.fetchMyGroupInfo(
+        widget.session,
+        widget.groupId,
+        month: _selectedMonth,
+      );
+    });
+  }
+
+  /// Oy chiplarini guruhda dars boshlangan oydan joriy oygacha yasaydi.
+  /// Boshlanish sanasi topilmasa faqat joriy oy chiqadi.
+  static List<_MonthOption> _buildMonthOptions(StudentGroupDetails detail) {
+    const monthNames = [
+      'Yanvar',
+      'Fevral',
+      'Mart',
+      'Aprel',
+      'May',
+      'Iyun',
+      'Iyul',
+      'Avgust',
+      'Sentabr',
+      'Oktabr',
+      'Noyabr',
+      'Dekabr',
+    ];
+
+    final now = DateTime.now();
+    final start = _parseDdMmYyyy(detail.startDate) ??
+        _parseDdMmYyyy(detail.createdDate) ??
+        _parseDdMmYyyy(detail.studentJoinedDate) ??
+        now;
+
+    // Nechta oy o'tganini hisoblaymiz (joriy oy ham kiradi)
+    var totalMonths =
+        (now.year - start.year) * 12 + (now.month - start.month) + 1;
+    if (totalMonths < 1) totalMonths = 1;
+    // Juda uzun ro'yxatdan saqlanish uchun 24 oy bilan cheklaymiz
+    if (totalMonths > 24) totalMonths = 24;
+
+    return List.generate(totalMonths, (i) {
+      final date = DateTime(now.year, now.month - i);
+      final key = '${date.year}-${date.month.toString().padLeft(2, '0')}';
+      final name = monthNames[date.month - 1];
+      final label = date.year == now.year ? name : '$name ${date.year}';
+      return _MonthOption(key: key, label: label);
+    });
+  }
+
+  static DateTime? _parseDdMmYyyy(String value) {
+    final parts = value.trim().replaceAll('/', '.').split('.');
+    if (parts.length != 3) return null;
+    final day = int.tryParse(parts[0]);
+    final month = int.tryParse(parts[1]);
+    final year = int.tryParse(parts[2]);
+    if (day == null || month == null || year == null) return null;
+    if (month < 1 || month > 12) return null;
+    return DateTime(year, month, day);
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFFF2F5FA),
-      appBar: AppBar(
-        title: const Text('Guruh tafsilotlari'),
-        backgroundColor: Colors.transparent,
-        surfaceTintColor: Colors.transparent,
-      ),
-      body: FutureBuilder<StudentGroupDetails>(
-        future: _detailFuture,
-        builder: (context, snapshot) {
-          final isLoading = snapshot.connectionState == ConnectionState.waiting;
-          final error = snapshot.error;
-          final detail = snapshot.data;
+      body: SafeArea(
+        child: FutureBuilder<StudentGroupDetails>(
+          future: _detailFuture,
+          builder: (context, snapshot) {
+            final isLoading =
+                snapshot.connectionState == ConnectionState.waiting;
+            final error = snapshot.error;
+            final detail = snapshot.data;
 
-          if (isLoading) {
-            return const Center(
-              child: CircularProgressIndicator(color: AppTheme.brandColor),
-            );
-          }
-
-          if (error != null || detail == null) {
-            return _ErrorState(
-              message: _readErrorMessage(error),
-              onRetry: _reload,
-            );
-          }
-
-          return RefreshIndicator(
-            onRefresh: _reload,
-            color: AppTheme.brandColor,
-            child: ListView(
-              padding: const EdgeInsets.fromLTRB(8, 8, 8, 14),
-              physics: const AlwaysScrollableScrollPhysics(),
-              children: [
-                _HeroCard(detail: detail),
-                const SizedBox(height: 8),
-                _InfoPairCard(
-                  leftLabel: 'Narx',
-                  leftValue: _formatMoney(detail.price),
-                  rightLabel: 'Yaratilgan sana',
-                  rightValue: _formatDate(detail.createdDate),
-                  leftValueColor: const Color(0xFF0E8C45),
+            var monthOptions = const <_MonthOption>[];
+            Widget content;
+            if (isLoading) {
+              content = const Center(
+                child: CircularProgressIndicator(color: AppTheme.brandColor),
+              );
+            } else if (error != null || detail == null) {
+              content = _ErrorState(
+                message: _readErrorMessage(error),
+                onRetry: _reload,
+              );
+            } else {
+              monthOptions = _buildMonthOptions(detail);
+              final topMates = _topThreeMates(detail.groupmates);
+              content = RefreshIndicator(
+                onRefresh: _reload,
+                color: AppTheme.brandColor,
+                child: ListView(
+                  padding: const EdgeInsets.fromLTRB(8, 8, 8, 14),
+                  physics: const AlwaysScrollableScrollPhysics(),
+                  children: [
+                    if (topMates.isNotEmpty) ...[
+                      _PodiumCard(topMates: topMates),
+                      const SizedBox(height: 10),
+                    ],
+                    _HeroCard(detail: detail),
+                    const SizedBox(height: 8),
+                    _MembersCard(groupmates: detail.groupmates),
+                  ],
                 ),
-                const SizedBox(height: 8),
-                _MembersCard(groupmates: detail.groupmates),
+              );
+            }
+
+            return Column(
+              children: [
+                // Ortga qaytish tugmasi + o'ng tarafida oy tanlash chiplari
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(8, 8, 8, 4),
+                  child: Row(
+                    children: [
+                      _CircleBackButton(
+                        onTap: () => Navigator.of(context).maybePop(),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: monthOptions.isEmpty
+                            ? const SizedBox(height: 36)
+                            : _MonthChipsRow(
+                                options: monthOptions,
+                                selectedKey: _selectedMonth,
+                                onSelect: _selectMonth,
+                              ),
+                      ),
+                    ],
+                  ),
+                ),
+                Expanded(child: content),
               ],
-            ),
-          );
-        },
+            );
+          },
+        ),
       ),
     );
   }
@@ -105,6 +202,18 @@ class _StudentGroupDetailPageState extends State<StudentGroupDetailPage> {
   }
 }
 
+/// Ball bo'yicha eng yaxshi 3 talabani aniqlaydi (podium uchun)
+List<StudentGroupMate> _topThreeMates(List<StudentGroupMate> groupmates) {
+  final sorted = [...groupmates]
+    ..sort((a, b) {
+      final rankA = a.rankInGroup > 0 ? a.rankInGroup : 1 << 20;
+      final rankB = b.rankInGroup > 0 ? b.rankInGroup : 1 << 20;
+      if (rankA != rankB) return rankA.compareTo(rankB);
+      return b.monthlyPoints.compareTo(a.monthlyPoints);
+    });
+  return sorted.take(3).toList();
+}
+
 class _HeroCard extends StatelessWidget {
   const _HeroCard({required this.detail});
 
@@ -113,70 +222,60 @@ class _HeroCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(12),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(24),
+        borderRadius: BorderRadius.circular(20),
         border: Border.all(color: const Color(0xFFE4E9F1)),
         boxShadow: const [
           BoxShadow(
-            color: Color(0x16000000),
-            blurRadius: 36,
-            offset: Offset(0, 14),
+            color: Color(0x0E000000),
+            blurRadius: 20,
+            offset: Offset(0, 8),
           ),
         ],
       ),
-      child: Row(
+      child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _GroupMonogram(label: _monogram(detail.groupName)),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
+          Row(
+            children: [
+              Expanded(
+                child: Text(
                   detail.groupName,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
-                    fontSize: 19,
+                    fontSize: 17,
                     fontWeight: FontWeight.w900,
                     color: Color(0xFF182033),
                   ),
                 ),
-                const SizedBox(height: 5),
-                _TinyPill(
-                  label: detail.subjectName,
-                  background: const Color(0xFFEAF0FF),
-                  foreground: const Color(0xFF4C63D2),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  'Teacher: ${detail.teacherName}',
-                  style: const TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w700,
-                    color: Color(0xFF3A4454),
-                  ),
-                ),
-                const SizedBox(height: 3),
-                Text(
-                  detail.teacherPhone.isEmpty ? '-' : detail.teacherPhone,
-                  style: const TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w600,
-                    color: Color(0xFF7B8495),
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  'Azolar: ${detail.totalMembers}',
-                  style: const TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w700,
-                    color: Color(0xFF6D4DF6),
-                  ),
-                ),
-              ],
+              ),
+              const SizedBox(width: 8),
+              _TinyPill(
+                label: detail.subjectName,
+                background: const Color(0xFFEAF0FF),
+                foreground: const Color(0xFF4C63D2),
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          Text(
+            'Teacher: ${detail.teacherName}',
+            style: const TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+              color: Color(0xFF3A4454),
+            ),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            detail.teacherPhone.isEmpty ? '-' : detail.teacherPhone,
+            style: const TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
+              color: Color(0xFF7B8495),
             ),
           ),
         ],
@@ -185,91 +284,249 @@ class _HeroCard extends StatelessWidget {
   }
 }
 
-class _InfoPairCard extends StatelessWidget {
-  const _InfoPairCard({
-    required this.leftLabel,
-    required this.leftValue,
-    required this.rightLabel,
-    required this.rightValue,
-    this.leftValueColor,
-  });
+class _CircleBackButton extends StatelessWidget {
+  const _CircleBackButton({required this.onTap});
 
-  final String leftLabel;
-  final String leftValue;
-  final String rightLabel;
-  final String rightValue;
-  final Color? leftValueColor;
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        width: 36,
+        height: 36,
+        decoration: BoxDecoration(
+          color: Colors.white,
+          shape: BoxShape.circle,
+          border: Border.all(color: const Color(0xFFDDE3EE)),
+        ),
+        child: const Icon(
+          Icons.arrow_back_rounded,
+          size: 20,
+          color: Color(0xFF182033),
+        ),
+      ),
+    );
+  }
+}
+
+class _MonthOption {
+  const _MonthOption({required this.key, required this.label});
+
+  final String key; // YYYY-MM
+  final String label;
+}
+
+class _MonthChipsRow extends StatelessWidget {
+  const _MonthChipsRow({
+    required this.options,
+    required this.selectedKey,
+    required this.onSelect,
+  });
+
+  final List<_MonthOption> options;
+  final String selectedKey;
+  final ValueChanged<String> onSelect;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: 36,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(horizontal: 2),
+        itemCount: options.length,
+        separatorBuilder: (_, _) => const SizedBox(width: 8),
+        itemBuilder: (context, index) {
+          final option = options[index];
+          final selected = option.key == selectedKey;
+          return GestureDetector(
+            onTap: () => onSelect(option.key),
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 180),
+              padding: const EdgeInsets.symmetric(horizontal: 14),
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                color: selected ? const Color(0xFF6D4DF6) : Colors.white,
+                borderRadius: BorderRadius.circular(999),
+                border: Border.all(
+                  color: selected
+                      ? const Color(0xFF6D4DF6)
+                      : const Color(0xFFDDE3EE),
+                ),
+              ),
+              child: Text(
+                option.label,
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w800,
+                  color: selected ? Colors.white : const Color(0xFF4A5468),
+                ),
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _PodiumCard extends StatelessWidget {
+  const _PodiumCard({required this.topMates});
+
+  /// Eng yaxshi natijali talabalar (birinchisi — 1-o'rin), 1-3 ta
+  final List<StudentGroupMate> topMates;
+
+  @override
+  Widget build(BuildContext context) {
+    final first = topMates.isNotEmpty ? topMates[0] : null;
+    final second = topMates.length > 1 ? topMates[1] : null;
+    final third = topMates.length > 2 ? topMates[2] : null;
+
     return Container(
-      padding: const EdgeInsets.all(12),
+      padding: const EdgeInsets.fromLTRB(10, 16, 10, 14),
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: const Color(0xFFE1E7F0)),
+        borderRadius: BorderRadius.circular(24),
+        gradient: const LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [Color(0xFF7C4DD8), Color(0xFF5B34A6)],
+        ),
         boxShadow: const [
           BoxShadow(
-            color: Color(0x0C000000),
-            blurRadius: 20,
-            offset: Offset(0, 8),
+            color: Color(0x335B34A6),
+            blurRadius: 24,
+            offset: Offset(0, 10),
           ),
         ],
       ),
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.end,
         children: [
           Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  leftLabel,
-                  style: const TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w700,
-                    color: Color(0xFF7B8495),
-                  ),
-                ),
-                const SizedBox(height: 3),
-                Text(
-                  leftValue,
-                  style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w800,
-                    color: leftValueColor ?? const Color(0xFF182033),
-                  ),
-                ),
-              ],
-            ),
+            child: second == null
+                ? const SizedBox.shrink()
+                : _PodiumColumn(mate: second, place: 2),
           ),
-          const SizedBox(width: 16),
           Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: [
-                Text(
-                  rightLabel,
-                  style: const TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w700,
-                    color: Color(0xFF7B8495),
-                  ),
-                ),
-                const SizedBox(height: 3),
-                Text(
-                  rightValue,
-                  textAlign: TextAlign.end,
-                  style: const TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w800,
-                    color: Color(0xFF182033),
-                  ),
-                ),
-              ],
-            ),
+            child: first == null
+                ? const SizedBox.shrink()
+                : _PodiumColumn(mate: first, place: 1),
+          ),
+          Expanded(
+            child: third == null
+                ? const SizedBox.shrink()
+                : _PodiumColumn(mate: third, place: 3),
           ),
         ],
       ),
+    );
+  }
+}
+
+class _PodiumColumn extends StatelessWidget {
+  const _PodiumColumn({required this.mate, required this.place});
+
+  final StudentGroupMate mate;
+  final int place;
+
+  /// O'rin balandligi — 1-o'rin eng yuqorida turadi
+  static const Map<int, double> _lifts = {1: 34, 2: 14, 3: 0};
+  static const Map<int, Color> _badgeColors = {
+    1: Color(0xFFF2A93B),
+    2: Color(0xFFBFC5CF),
+    3: Color(0xFFCB7A43),
+  };
+
+  @override
+  Widget build(BuildContext context) {
+    final isFirst = place == 1;
+
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        if (isFirst)
+          const Text('👑', style: TextStyle(fontSize: 20))
+        else
+          const SizedBox(height: 24),
+        const SizedBox(height: 4),
+        // Avatar + pastiga yopishgan medal raqami
+        Stack(
+          clipBehavior: Clip.none,
+          alignment: Alignment.center,
+          children: [
+            Container(
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                border: Border.all(
+                  color: _badgeColors[place]!,
+                  width: isFirst ? 2.5 : 2,
+                ),
+              ),
+              child: ProfileAvatar(
+                avatarKey: mate.avatarKey.isEmpty ? null : mate.avatarKey,
+                avatarUrl: mate.avatarUrl.isEmpty ? null : mate.avatarUrl,
+                role: 'student',
+                seed: mate.displayName,
+                size: isFirst ? 58 : 46,
+                showBorder: false,
+              ),
+            ),
+            Positioned(
+              bottom: -9,
+              child: Container(
+                width: 22,
+                height: 22,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: _badgeColors[place],
+                  border: Border.all(color: Colors.white, width: 1.5),
+                  boxShadow: const [
+                    BoxShadow(
+                      color: Color(0x44000000),
+                      blurRadius: 6,
+                      offset: Offset(0, 2),
+                    ),
+                  ],
+                ),
+                alignment: Alignment.center,
+                child: Text(
+                  '$place',
+                  style: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w900,
+                    color: Colors.white,
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 14),
+        // Ism-familiya to'liq ko'rinadi — kesilmaydi, kerak bo'lsa 2 qatorga o'tadi
+        Text(
+          mate.displayName,
+          textAlign: TextAlign.center,
+          softWrap: true,
+          style: const TextStyle(
+            fontSize: 11,
+            fontWeight: FontWeight.w800,
+            color: Colors.white,
+            height: 1.25,
+          ),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          '${mate.monthlyPoints} ball',
+          style: TextStyle(
+            fontSize: isFirst ? 14 : 12,
+            fontWeight: FontWeight.w900,
+            color: const Color(0xFFFFE9A8),
+          ),
+        ),
+        SizedBox(height: _lifts[place]),
+      ],
     );
   }
 }
@@ -342,65 +599,51 @@ class _MateRow extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  mate.displayName,
-                  style: const TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w800,
-                    color: Color(0xFF182033),
-                  ),
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        mate.displayName,
+                        style: const TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w800,
+                          color: Color(0xFF182033),
+                        ),
+                      ),
+                    ),
+                    _TinyPill(
+                      label: '${mate.rankInGroup > 0 ? mate.rankInGroup : '-'}',
+                      background: const Color(0xFFEAF0FF),
+                      foreground: const Color(0xFF4C63D2),
+                    ),
+                  ],
                 ),
                 const SizedBox(height: 2),
-                Text(
-                  _formatDate(mate.joinDate),
-                  style: const TextStyle(
-                    fontSize: 10,
-                    fontWeight: FontWeight.w600,
-                    color: Color(0xFF8A93A5),
-                  ),
+                Row(
+                  children: [
+                    Text(
+                      '${mate.monthlyPoints} ball',
+                      style: const TextStyle(
+                        fontSize: 10,
+                        fontWeight: FontWeight.w700,
+                        color: Color(0xFF6D4DF6),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Text(
+                      _formatDate(mate.joinDate),
+                      style: const TextStyle(
+                        fontSize: 10,
+                        fontWeight: FontWeight.w600,
+                        color: Color(0xFF8A93A5),
+                      ),
+                    ),
+                  ],
                 ),
               ],
             ),
           ),
         ],
-      ),
-    );
-  }
-}
-
-class _GroupMonogram extends StatelessWidget {
-  const _GroupMonogram({required this.label});
-
-  final String label;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: 58,
-      height: 58,
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(20),
-        gradient: const LinearGradient(
-          colors: [Color(0xFF6B5CF6), Color(0xFF4A7BFF)],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-        boxShadow: const [
-          BoxShadow(
-            color: Color(0x1A5A64F5),
-            blurRadius: 18,
-            offset: Offset(0, 8),
-          ),
-        ],
-      ),
-      alignment: Alignment.center,
-      child: Text(
-        label,
-        style: const TextStyle(
-          fontSize: 17,
-          fontWeight: FontWeight.w900,
-          color: Colors.white,
-        ),
       ),
     );
   }
@@ -435,28 +678,6 @@ class _TinyPill extends StatelessWidget {
       ),
     );
   }
-}
-
-String _monogram(String value) {
-  final words = value.trim().split(RegExp(r'\s+')).where((word) => word.isNotEmpty).toList();
-  if (words.isEmpty) return 'G';
-  if (words.length == 1) {
-    final text = words.first;
-    return text.length >= 2 ? text.substring(0, 2).toUpperCase() : text.toUpperCase();
-  }
-  final first = words.first.isNotEmpty ? words.first[0] : 'G';
-  final second = words[1].isNotEmpty ? words[1][0] : '';
-  return (first + second).toUpperCase();
-}
-
-String _formatMoney(double value) {
-  final text = value.toStringAsFixed(0);
-  final parts = <String>[];
-  for (var i = text.length; i > 0; i -= 3) {
-    final start = i - 3 < 0 ? 0 : i - 3;
-    parts.insert(0, text.substring(start, i));
-  }
-  return '${parts.join(' ')} so\'m';
 }
 
 String _formatDate(String value) {

@@ -7,6 +7,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:http/http.dart' as http;
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../firebase_options.dart';
 import '../../features/auth/models/auth_session.dart';
@@ -46,6 +47,11 @@ class NotificationService {
   final FlutterLocalNotificationsPlugin _localNotifications =
       FlutterLocalNotificationsPlugin();
   final ValueNotifier<int> unreadCount = ValueNotifier<int>(0);
+
+  /// Push bildirishnomalar yoqilgan-o'chirilgani (sozlamalardagi switch)
+  final ValueNotifier<bool> pushEnabled = ValueNotifier<bool>(true);
+  static const String _pushPrefKey = 'push_notifications_enabled';
+
   bool _initialized = false;
   bool _firebaseEnabled = false;
   bool _refreshingUnreadCount = false;
@@ -58,6 +64,7 @@ class NotificationService {
     _initialized = true;
     _firebaseEnabled = firebaseEnabled;
 
+    await _loadPushPreference();
     await _initializeLocalNotifications();
 
     if (!_firebaseEnabled) {
@@ -88,6 +95,45 @@ class NotificationService {
   void clearSession() {
     _boundAccessToken = null;
     unreadCount.value = 0;
+  }
+
+  Future<void> _loadPushPreference() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      pushEnabled.value = prefs.getBool(_pushPrefKey) ?? true;
+    } catch (error) {
+      debugPrint('Push preference load error: $error');
+    }
+  }
+
+  /// Sozlamalardagi switch: push'ni yoqadi yoki o'chiradi.
+  /// O'chirilganda FCM token bekor qilinadi — server yuborsa ham yetib bormaydi.
+  /// Yoqilganda yangi token olinib backend'ga qayta ro'yxatdan o'tkaziladi.
+  Future<void> setPushEnabled(bool enabled) async {
+    if (pushEnabled.value == enabled) return;
+    pushEnabled.value = enabled;
+
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool(_pushPrefKey, enabled);
+    } catch (error) {
+      debugPrint('Push preference save error: $error');
+    }
+
+    if (!_firebaseEnabled) return;
+
+    try {
+      if (enabled) {
+        final accessToken = (_boundAccessToken ?? '').trim();
+        if (accessToken.isNotEmpty) {
+          await _registerPushToken(accessToken);
+        }
+      } else {
+        await FirebaseMessaging.instance.deleteToken();
+      }
+    } catch (error) {
+      debugPrint('Push toggle error: $error');
+    }
   }
 
   Future<void> refreshUnreadCount({String? accessToken}) async {
@@ -349,7 +395,7 @@ class NotificationService {
     String accessToken, {
     String? overrideToken,
   }) async {
-    if (!_firebaseEnabled) return;
+    if (!_firebaseEnabled || !pushEnabled.value) return;
 
     try {
       final token =
@@ -377,6 +423,7 @@ class NotificationService {
   }
 
   Future<void> _showForegroundNotification(RemoteMessage message) async {
+    if (!pushEnabled.value) return;
     final notification = message.notification;
     final title =
         notification?.title ??

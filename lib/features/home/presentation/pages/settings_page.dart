@@ -118,15 +118,7 @@ class SettingsPage extends StatelessWidget {
             _SettingsTile(
               icon: Icons.lock_outline_rounded,
               title: 'Parolni almashtirish',
-              onTap: () {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text(
-                      'Parolni almashtirish keyingi bosqichda ulanadi',
-                    ),
-                  ),
-                );
-              },
+              onTap: () => _openPasswordChange(context, session),
             ),
           ],
         ),
@@ -151,24 +143,15 @@ class SettingsPage extends StatelessWidget {
         const SizedBox(height: 14),
         _SettingsSection(
           children: [
-            _SwitchTile(
-              icon: Icons.notifications_active_outlined,
-              title: 'Push notification',
-              value: true,
-              onChanged: (_) {},
-            ),
-            _SettingsTile(
-              icon: Icons.notifications_none_rounded,
-              title: 'Push notification test',
-              onTap: () async {
-                await NotificationService.instance.showTestNotification(
-                  title: 'Push notification test',
-                  body: 'salom oshna',
-                  data: const <String, dynamic>{
-                    'route': '/notification-detail',
-                  },
-                );
-              },
+            ValueListenableBuilder<bool>(
+              valueListenable: NotificationService.instance.pushEnabled,
+              builder: (context, enabled, _) => _SwitchTile(
+                icon: Icons.notifications_active_outlined,
+                title: 'Push notification',
+                value: enabled,
+                onChanged: (value) =>
+                    NotificationService.instance.setPushEnabled(value),
+              ),
             ),
           ],
         ),
@@ -255,6 +238,26 @@ class SettingsPage extends StatelessWidget {
       onSessionUpdated: onSessionUpdated,
       forcedKey: forcedKey,
     );
+  }
+
+  static Future<void> _openPasswordChange(
+    BuildContext context,
+    AuthSession session,
+  ) async {
+    final changed = await showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => _CompactModalSheet(
+        child: _PasswordChangeSheet(session: session),
+      ),
+    );
+
+    if (changed == true && context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Parol muvaffaqiyatli yangilandi')),
+      );
+    }
   }
 
   static Future<void> _openAvatarUploader(
@@ -453,6 +456,207 @@ class _ProfileEditSheetState extends State<_ProfileEditSheet> {
   static String _text(Object? value) {
     final text = value?.toString().trim() ?? '';
     return text.isEmpty || text == 'null' ? '' : text;
+  }
+}
+
+class _PasswordChangeSheet extends StatefulWidget {
+  const _PasswordChangeSheet({required this.session});
+
+  final AuthSession session;
+
+  @override
+  State<_PasswordChangeSheet> createState() => _PasswordChangeSheetState();
+}
+
+class _PasswordChangeSheetState extends State<_PasswordChangeSheet> {
+  final TextEditingController _oldPasswordController = TextEditingController();
+  final TextEditingController _newPasswordController = TextEditingController();
+  final TextEditingController _confirmPasswordController =
+      TextEditingController();
+  bool _obscureOld = true;
+  bool _obscureNew = true;
+  bool _loading = false;
+  String? _errorText;
+
+  @override
+  void dispose() {
+    _oldPasswordController.dispose();
+    _newPasswordController.dispose();
+    _confirmPasswordController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _submit() async {
+    final oldPassword = _oldPasswordController.text;
+    final newPassword = _newPasswordController.text;
+    final confirmPassword = _confirmPasswordController.text;
+
+    if (oldPassword.isEmpty || newPassword.isEmpty) {
+      setState(() => _errorText = 'Eski va yangi parolni kiriting');
+      return;
+    }
+    if (newPassword.length < 4) {
+      setState(
+        () => _errorText = 'Yangi parol kamida 4 ta belgidan iborat bo\'lsin',
+      );
+      return;
+    }
+    if (newPassword != confirmPassword) {
+      setState(() => _errorText = 'Yangi parol tasdiqlash bilan mos emas');
+      return;
+    }
+
+    setState(() {
+      _loading = true;
+      _errorText = null;
+    });
+
+    try {
+      final service = AuthService();
+      await service.changePassword(
+        accessToken: widget.session.accessToken,
+        oldPassword: oldPassword,
+        newPassword: newPassword,
+      );
+      if (!mounted) return;
+      Navigator.of(context).pop(true);
+    } catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _loading = false;
+        _errorText = error is AuthException
+            ? error.message
+            : 'Parolni yangilashda xatolik yuz berdi';
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Expanded(
+                child: Text(
+                  'Parolni almashtirish',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w800,
+                    color: Color(0xFF182033),
+                  ),
+                ),
+              ),
+              IconButton(
+                onPressed: () => Navigator.of(context).pop(),
+                icon: const Icon(Icons.close_rounded),
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          _passwordField(
+            controller: _oldPasswordController,
+            label: 'Eski parol',
+            obscure: _obscureOld,
+            onToggle: () => setState(() => _obscureOld = !_obscureOld),
+          ),
+          _passwordField(
+            controller: _newPasswordController,
+            label: 'Yangi parol',
+            obscure: _obscureNew,
+            onToggle: () => setState(() => _obscureNew = !_obscureNew),
+          ),
+          _passwordField(
+            controller: _confirmPasswordController,
+            label: 'Yangi parolni tasdiqlang',
+            obscure: _obscureNew,
+            onToggle: () => setState(() => _obscureNew = !_obscureNew),
+          ),
+          if (_errorText != null) ...[
+            const SizedBox(height: 2),
+            Text(
+              _errorText!,
+              style: const TextStyle(
+                fontSize: 12.5,
+                fontWeight: FontWeight.w600,
+                color: Color(0xFFA70E07),
+              ),
+            ),
+          ],
+          const SizedBox(height: 12),
+          SizedBox(
+            width: double.infinity,
+            height: 50,
+            child: ElevatedButton(
+              onPressed: _loading ? null : _submit,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppTheme.brandColor,
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                ),
+              ),
+              child: _loading
+                  ? const SizedBox(
+                      width: 22,
+                      height: 22,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2.4,
+                        color: Colors.white,
+                      ),
+                    )
+                  : const Text(
+                      'Parolni yangilash',
+                      style: TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _passwordField({
+    required TextEditingController controller,
+    required String label,
+    required bool obscure,
+    required VoidCallback onToggle,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: TextField(
+        controller: controller,
+        obscureText: obscure,
+        decoration: InputDecoration(
+          labelText: label,
+          border: OutlineInputBorder(borderRadius: BorderRadius.circular(14)),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(14),
+            borderSide: const BorderSide(
+              color: AppTheme.brandColor,
+              width: 1.4,
+            ),
+          ),
+          suffixIcon: IconButton(
+            onPressed: onToggle,
+            icon: Icon(
+              obscure
+                  ? Icons.visibility_outlined
+                  : Icons.visibility_off_outlined,
+              size: 20,
+              color: const Color(0xFF7B8495),
+            ),
+          ),
+        ),
+      ),
+    );
   }
 }
 

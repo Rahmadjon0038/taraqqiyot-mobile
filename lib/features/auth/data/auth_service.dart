@@ -111,6 +111,37 @@ class AuthService {
     return AuthUser.fromJson(decoded);
   }
 
+  /// Login qilingan user parolini almashtiradi (eski parol tekshiriladi)
+  Future<void> changePassword({
+    required String accessToken,
+    required String oldPassword,
+    required String newPassword,
+  }) async {
+    final response = await http
+        .post(
+          _uri('/api/users/change-password'),
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer $accessToken',
+          },
+          body: jsonEncode({
+            'old_password': oldPassword,
+            'new_password': newPassword,
+          }),
+        )
+        .timeout(_timeout);
+
+    final decoded = _decodeResponse(response);
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      throw AuthException(
+        decoded['message']?.toString() ??
+            decoded['error']?.toString() ??
+            'Parol yangilanmadi',
+        statusCode: response.statusCode,
+      );
+    }
+  }
+
   Future<String> refreshAccessToken(String refreshToken) async {
     final response = await http
         .post(

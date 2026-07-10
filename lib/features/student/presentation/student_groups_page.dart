@@ -110,19 +110,19 @@ class _StudentGroupCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return Material(
       color: Colors.white,
-      borderRadius: BorderRadius.circular(28),
+      borderRadius: BorderRadius.circular(20),
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(28),
+        borderRadius: BorderRadius.circular(20),
         child: Container(
-          padding: const EdgeInsets.all(14),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
           decoration: BoxDecoration(
             color: Colors.white,
-            borderRadius: BorderRadius.circular(24),
-            border: Border.all(color: const Color(0xFFF0F2F7)),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: const Color(0xFFE4E9F1)),
             boxShadow: const [
               BoxShadow(
-                color: Color(0x0A000000),
+                color: Color(0x0E000000),
                 blurRadius: 20,
                 offset: Offset(0, 8),
               ),
@@ -132,114 +132,82 @@ class _StudentGroupCard extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  _GroupMonogram(label: _monogram(group.groupName)),
-                  const SizedBox(width: 12),
                   Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+                    child: Text(
+                      group.groupName,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontSize: 17,
+                        fontWeight: FontWeight.w900,
+                        color: Color(0xFF182033),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  _MiniPill(
+                    label: group.subjectName,
+                    background: const Color(0xFFFBEAE9),
+                    foreground: AppTheme.brandColor,
+                  ),
+                ],
+              ),
+              const SizedBox(height: 6),
+              Text(
+                'Ustoz: ${group.teacherName}',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                  color: Color(0xFF3A4454),
+                ),
+              ),
+              const SizedBox(height: 10),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  // Wrap — chiplar sig'masa ellipsis o'rniga pastki qatorga tushadi
+                  Expanded(
+                    child: Wrap(
+                      spacing: 8,
+                      runSpacing: 6,
                       children: [
-                        Text(
-                          group.groupName,
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.w800,
-                            color: Color(0xFF182033),
-                          ),
+                        _MiniPill(
+                          label: 'Ball: ${group.monthlyPoints}',
+                          background: const Color(0xFFFBEAE9),
+                          foreground: AppTheme.brandColor,
                         ),
-                        const SizedBox(height: 6),
-                        Wrap(
-                          spacing: 6,
-                          runSpacing: 6,
-                          children: [
-                            _MiniPill(
-                              label: group.subjectName,
-                              background: const Color(0xFFEAF0FF),
-                              foreground: const Color(0xFF4C63D2),
-                            ),
-                            _MiniPill(
-                              label: group.teacherName,
-                              background: const Color(0xFFF4F6FA),
-                              foreground: const Color(0xFF5C6474),
-                            ),
-                          ],
+                        _MiniPill(
+                          label: group.monthlyRank > 0
+                              ? 'Guruhdagi o‘rningiz: ${group.monthlyRank}'
+                              : 'Guruhdagi o‘rningiz: -',
+                          background: const Color(0xFFF4F6FA),
+                          foreground: const Color(0xFF5C6474),
                         ),
                       ],
                     ),
                   ),
+                  const SizedBox(width: 8),
+                  const Icon(
+                    Icons.calendar_today_rounded,
+                    size: 12,
+                    color: Color(0xFF8A93A5),
+                  ),
+                  const SizedBox(width: 4),
+                  Text(
+                    _formatDate(group.createdDate),
+                    style: const TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                      color: Color(0xFF7B8495),
+                    ),
+                  ),
                 ],
               ),
-              const SizedBox(height: 12),
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(18),
-                  border: Border.all(color: const Color(0xFFEFF2F7)),
-                  boxShadow: const [
-                    BoxShadow(
-                      color: Color(0x08000000),
-                      blurRadius: 14,
-                      offset: Offset(0, 6),
-                    ),
-                  ],
-                ),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text(
-                            'Narx',
-                            style: TextStyle(
-                              fontSize: 11,
-                              fontWeight: FontWeight.w700,
-                              color: Color(0xFF7B8495),
-                            ),
-                          ),
-                          const SizedBox(height: 3),
-                          Text(
-                            _formatMoney(group.price),
-                            style: const TextStyle(
-                              fontSize: 15,
-                              fontWeight: FontWeight.w800,
-                              color: Color(0xFF14903B),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.end,
-                      children: [
-                        const Text(
-                          'Yaratilgan sana',
-                          style: TextStyle(
-                            fontSize: 11,
-                            fontWeight: FontWeight.w700,
-                            color: Color(0xFF7B8495),
-                          ),
-                        ),
-                        const SizedBox(height: 3),
-                        Text(
-                          _formatDate(group.createdDate),
-                          style: const TextStyle(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w800,
-                            color: Color(0xFF182033),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
+              const SizedBox(height: 10),
+              _MasteryProgressBar(percent: group.masteryPercent),
             ],
           ),
         ),
@@ -248,39 +216,87 @@ class _StudentGroupCard extends StatelessWidget {
   }
 }
 
-class _GroupMonogram extends StatelessWidget {
-  const _GroupMonogram({required this.label});
+/// Bir oylik o'zlashtirish ko'rsatkichi — brend qizil rangdagi progress bar
+class _MasteryProgressBar extends StatelessWidget {
+  const _MasteryProgressBar({required this.percent});
 
-  final String label;
+  /// 0..100 oralig'idagi foiz
+  final double percent;
 
   @override
   Widget build(BuildContext context) {
+    final clamped = percent.clamp(0, 100).toDouble();
+    final label = '${clamped.round()}%';
+
     return Container(
-      width: 60,
-      height: 60,
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(20),
-        gradient: const LinearGradient(
-          colors: [Color(0xFF6B5CF6), Color(0xFF4A7BFF)],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-        boxShadow: const [
-          BoxShadow(
-            color: Color(0x1A5A64F5),
-            blurRadius: 18,
-            offset: Offset(0, 8),
+        color: const Color(0xFFF8F4F4),
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 34,
+            height: 34,
+            decoration: const BoxDecoration(
+              color: Color(0xFFFBEAE9),
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(
+              Icons.bar_chart_rounded,
+              size: 18,
+              color: AppTheme.brandColor,
+            ),
+          ),
+          const SizedBox(width: 10),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'O\'zlashtirish',
+                style: TextStyle(
+                  fontSize: 10,
+                  fontWeight: FontWeight.w700,
+                  color: Color(0xFF7B8495),
+                ),
+              ),
+              const SizedBox(height: 1),
+              Text(
+                label,
+                style: const TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w900,
+                  color: AppTheme.brandColor,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(999),
+              child: SizedBox(
+                height: 8,
+                child: Stack(
+                  children: [
+                    Container(color: const Color(0xFFE9E2E1)),
+                    FractionallySizedBox(
+                      widthFactor: clamped / 100,
+                      child: Container(
+                        decoration: const BoxDecoration(
+                          gradient: LinearGradient(
+                            colors: [Color(0xFFA70E07), Color(0xFF7C0A05)],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
           ),
         ],
-      ),
-      alignment: Alignment.center,
-      child: Text(
-        label,
-        style: const TextStyle(
-          fontSize: 18,
-          fontWeight: FontWeight.w900,
-          color: Colors.white,
-        ),
       ),
     );
   }
@@ -317,28 +333,6 @@ class _MiniPill extends StatelessWidget {
       ),
     );
   }
-}
-
-String _monogram(String value) {
-  final words = value.trim().split(RegExp(r'\s+')).where((word) => word.isNotEmpty).toList();
-  if (words.isEmpty) return 'G';
-  if (words.length == 1) {
-    final text = words.first;
-    return text.length >= 2 ? text.substring(0, 2).toUpperCase() : text.toUpperCase();
-  }
-  final first = words.first.isNotEmpty ? words.first[0] : 'G';
-  final second = words[1].isNotEmpty ? words[1][0] : '';
-  return (first + second).toUpperCase();
-}
-
-String _formatMoney(double value) {
-  final text = value.toStringAsFixed(0);
-  final parts = <String>[];
-  for (var i = text.length; i > 0; i -= 3) {
-    final start = i - 3 < 0 ? 0 : i - 3;
-    parts.insert(0, text.substring(start, i));
-  }
-  return '${parts.join(' ')} so\'m';
 }
 
 String _formatDate(String value) {
@@ -395,36 +389,23 @@ class _LoadingCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      height: 210,
-      padding: const EdgeInsets.all(16),
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(28),
+        borderRadius: BorderRadius.circular(20),
         border: Border.all(color: const Color(0xFFE8EDF4)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              _SkeletonBox(width: 68, height: 68, radius: 22),
-              const SizedBox(width: 14),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    _SkeletonBox(width: 170, height: 18, radius: 10),
-                    const SizedBox(height: 8),
-                    _SkeletonBox(width: 100, height: 12, radius: 999),
-                    const SizedBox(height: 8),
-                    _SkeletonBox(width: 130, height: 12, radius: 999),
-                  ],
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 18),
-          _SkeletonBox(width: double.infinity, height: 56, radius: 20),
+          _SkeletonBox(width: 170, height: 18, radius: 10),
+          const SizedBox(height: 8),
+          _SkeletonBox(width: 130, height: 12, radius: 999),
+          const SizedBox(height: 12),
+          _SkeletonBox(width: 100, height: 22, radius: 999),
+          const SizedBox(height: 12),
+          _SkeletonBox(width: double.infinity, height: 44, radius: 14),
         ],
       ),
     );
