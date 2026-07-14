@@ -371,8 +371,14 @@ class NotificationService {
   }
 
   Future<void> _printFcmToken() async {
-    final token = await FirebaseMessaging.instance.getToken();
-    debugPrint('FCM token: $token');
+    // iOS simulatorda APNS token bo'lmaydi — getToken() PlatformException
+    // (apns-token-not-set) otadi; bu init oqimini yiqitmasligi kerak.
+    try {
+      final token = await FirebaseMessaging.instance.getToken();
+      debugPrint('FCM token: $token');
+    } catch (error) {
+      debugPrint('FCM token olinmadi (simulatorda normal holat): $error');
+    }
   }
 
   Future<void> _listenToTokenRefresh() async {

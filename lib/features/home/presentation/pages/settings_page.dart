@@ -93,7 +93,6 @@ class SettingsPage extends StatelessWidget {
                       ),
                     ),
                     const SizedBox(height: 6),
-                   
                   ],
                 ),
               ),
@@ -165,6 +164,19 @@ class SettingsPage extends StatelessWidget {
             ),
           ],
         ),
+        // Akkauntni butunlay o'chirish — faqat studentlar uchun
+        if (normalizedRole == 'student') ...[
+          const SizedBox(height: 14),
+          _SettingsSection(
+            children: [
+              _SettingsTile(
+                icon: Icons.delete_forever_outlined,
+                title: 'Akkauntni o\'chirish',
+                onTap: () => _openDeleteAccount(context, session, onLogout),
+              ),
+            ],
+          ),
+        ],
         const SizedBox(height: 18),
         SizedBox(
           height: 52,
@@ -198,9 +210,8 @@ class SettingsPage extends StatelessWidget {
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (_) => _CompactModalSheet(
-        child: _ProfileEditSheet(session: session),
-      ),
+      builder: (_) =>
+          _CompactModalSheet(child: _ProfileEditSheet(session: session)),
     );
 
     if (result == null) return;
@@ -248,15 +259,35 @@ class SettingsPage extends StatelessWidget {
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (_) => _CompactModalSheet(
-        child: _PasswordChangeSheet(session: session),
-      ),
+      builder: (_) =>
+          _CompactModalSheet(child: _PasswordChangeSheet(session: session)),
     );
 
     if (changed == true && context.mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Parol muvaffaqiyatli yangilandi')),
       );
+    }
+  }
+
+  static Future<void> _openDeleteAccount(
+    BuildContext context,
+    AuthSession session,
+    Future<void> Function() onLogout,
+  ) async {
+    final deleted = await showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) =>
+          _CompactModalSheet(child: _DeleteAccountSheet(session: session)),
+    );
+
+    if (deleted == true && context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Akkaunt o\'chirildi')),
+      );
+      await onLogout();
     }
   }
 
@@ -268,9 +299,8 @@ class SettingsPage extends StatelessWidget {
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (_) => _CompactModalSheet(
-        child: _AvatarUploadSheet(session: session),
-      ),
+      builder: (_) =>
+          _CompactModalSheet(child: _AvatarUploadSheet(session: session)),
     );
 
     if (result == null) return;
@@ -315,10 +345,7 @@ class _CompactModalSheet extends StatelessWidget {
         color: Colors.white,
         borderRadius: const BorderRadius.vertical(top: Radius.circular(26)),
         clipBehavior: Clip.antiAlias,
-        child: SafeArea(
-          top: false,
-          child: child,
-        ),
+        child: SafeArea(top: false, child: child),
       ),
     );
   }
@@ -660,6 +687,208 @@ class _PasswordChangeSheetState extends State<_PasswordChangeSheet> {
   }
 }
 
+/// Akkauntni butunlay o'chirish — qaytarib bo'lmaydigan amal.
+/// Ogohlantirish + parol bilan tasdiqlash talab qilinadi.
+class _DeleteAccountSheet extends StatefulWidget {
+  const _DeleteAccountSheet({required this.session});
+
+  final AuthSession session;
+
+  @override
+  State<_DeleteAccountSheet> createState() => _DeleteAccountSheetState();
+}
+
+class _DeleteAccountSheetState extends State<_DeleteAccountSheet> {
+  final TextEditingController _passwordController = TextEditingController();
+  bool _obscure = true;
+  bool _loading = false;
+  String? _errorText;
+
+  @override
+  void dispose() {
+    _passwordController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _submit() async {
+    final password = _passwordController.text;
+    if (password.isEmpty) {
+      setState(() => _errorText = 'Tasdiqlash uchun parolingizni kiriting');
+      return;
+    }
+
+    setState(() {
+      _loading = true;
+      _errorText = null;
+    });
+
+    try {
+      final service = AuthService();
+      await service.deleteMyAccount(
+        accessToken: widget.session.accessToken,
+        password: password,
+      );
+      if (!mounted) return;
+      Navigator.of(context).pop(true);
+    } catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _loading = false;
+        _errorText = error is AuthException
+            ? error.message
+            : 'Akkauntni o\'chirishda xatolik yuz berdi';
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Expanded(
+                child: Text(
+                  'Akkauntni o\'chirish',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w800,
+                    color: Color(0xFFA70E07),
+                  ),
+                ),
+              ),
+              IconButton(
+                onPressed: () => Navigator.of(context).pop(),
+                icon: const Icon(Icons.close_rounded),
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: const Color(0xFFFEF2F2),
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: const Color(0xFFFECACA)),
+            ),
+            child: const Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Icon(
+                      Icons.warning_amber_rounded,
+                      size: 18,
+                      color: Color(0xFFA70E07),
+                    ),
+                    SizedBox(width: 6),
+                    Text(
+                      'Bu amalni qaytarib bo\'lmaydi!',
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w800,
+                        color: Color(0xFFA70E07),
+                      ),
+                    ),
+                  ],
+                ),
+                SizedBox(height: 6),
+                Text(
+                  'Akkauntingiz va unga bog\'liq barcha ma\'lumotlar '
+                  '(guruhlar, davomat, ballar, to\'lov tarixi) butunlay '
+                  'o\'chib ketadi. Qayta tiklash imkoni yo\'q.',
+                  style: TextStyle(
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w600,
+                    color: Color(0xFF7F1D1D),
+                    height: 1.4,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 12),
+          TextField(
+            controller: _passwordController,
+            obscureText: _obscure,
+            decoration: InputDecoration(
+              labelText: 'Parolingizni kiriting',
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(14),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(14),
+                borderSide: const BorderSide(
+                  color: AppTheme.brandColor,
+                  width: 1.4,
+                ),
+              ),
+              suffixIcon: IconButton(
+                onPressed: () => setState(() => _obscure = !_obscure),
+                icon: Icon(
+                  _obscure
+                      ? Icons.visibility_outlined
+                      : Icons.visibility_off_outlined,
+                  size: 20,
+                  color: const Color(0xFF7B8495),
+                ),
+              ),
+            ),
+          ),
+          if (_errorText != null) ...[
+            const SizedBox(height: 8),
+            Text(
+              _errorText!,
+              style: const TextStyle(
+                fontSize: 12.5,
+                fontWeight: FontWeight.w600,
+                color: Color(0xFFA70E07),
+              ),
+            ),
+          ],
+          const SizedBox(height: 12),
+          SizedBox(
+            width: double.infinity,
+            height: 50,
+            child: ElevatedButton.icon(
+              onPressed: _loading ? null : _submit,
+              icon: _loading
+                  ? const SizedBox(
+                      width: 22,
+                      height: 22,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2.4,
+                        color: Colors.white,
+                      ),
+                    )
+                  : const Icon(Icons.delete_forever_outlined, size: 20),
+              label: Text(
+                _loading ? '' : 'Akkauntni butunlay o\'chirish',
+                style: const TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFFDC2626),
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _AvatarUploadSheet extends StatefulWidget {
   const _AvatarUploadSheet({required this.session});
 
@@ -728,10 +957,7 @@ class _AvatarUploadSheetState extends State<_AvatarUploadSheet> {
               ),
               child: Row(
                 children: [
-                  const Icon(
-                    Icons.image_outlined,
-                    color: AppTheme.brandColor,
-                  ),
+                  const Icon(Icons.image_outlined, color: AppTheme.brandColor),
                   const SizedBox(width: 12),
                   Expanded(
                     child: Text(
@@ -798,10 +1024,7 @@ class _SettingsSection extends StatelessWidget {
     return Column(
       children: [
         for (final child in children)
-          Padding(
-            padding: const EdgeInsets.only(bottom: 10),
-            child: child,
-          ),
+          Padding(padding: const EdgeInsets.only(bottom: 10), child: child),
       ],
     );
   }

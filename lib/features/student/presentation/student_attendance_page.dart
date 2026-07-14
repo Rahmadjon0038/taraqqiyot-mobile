@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../app/theme/app_theme.dart';
+import '../../../core/utils/schedule_format.dart';
 import '../../auth/models/auth_session.dart';
 import '../data/student_attendance_service.dart';
 import '../data/student_groups_service.dart';
@@ -248,6 +249,37 @@ class _StudentAttendancePageState extends State<StudentAttendancePage> {
               selectedGroupId: _selectedGroupId,
               onSelected: _selectGroup,
             ),
+            // Tanlangan guruhning dars kunlari va vaqti
+            if (selectedGroup != null &&
+                formatScheduleLabel(
+                  selectedGroup.scheduleDays,
+                  selectedGroup.scheduleTime,
+                ).isNotEmpty) ...[
+              const SizedBox(height: 10),
+              Row(
+                children: [
+                  const Icon(
+                    Icons.calendar_month_rounded,
+                    size: 14,
+                    color: Color(0xFF2563EB),
+                  ),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: Text(
+                      formatScheduleLabel(
+                        selectedGroup.scheduleDays,
+                        selectedGroup.scheduleTime,
+                      ),
+                      style: const TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w800,
+                        color: Color(0xFF475569),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
             const SizedBox(height: 12),
           ],
           _MonthSelect(

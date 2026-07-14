@@ -332,6 +332,8 @@ class StudentGroupDetails {
     required this.monthlyRank,
     required this.groupmates,
     required this.currentUserStatus,
+    required this.scheduleDays,
+    required this.scheduleTime,
   });
 
   final int groupId;
@@ -352,6 +354,10 @@ class StudentGroupDetails {
   final int monthlyRank;
   final List<StudentGroupMate> groupmates;
   final StudentGroupMate? currentUserStatus;
+
+  /// Dars kunlari va vaqti (group_details.schedule dan)
+  final List<String> scheduleDays;
+  final String scheduleTime;
 
   factory StudentGroupDetails.fromJson(
     Map<String, dynamic> json, {
@@ -403,6 +409,12 @@ class StudentGroupDetails {
       monthlyRank: _asInt(json['my_rating'] is Map ? (json['my_rating'] as Map)['rank_in_group'] : 0),
       groupmates: groupmates,
       currentUserStatus: currentUserStatus,
+      scheduleDays: StudentGroupSummary._parseScheduleDays(
+        groupDetails['schedule'],
+      ),
+      scheduleTime: StudentGroupSummary._parseScheduleTime(
+        groupDetails['schedule'],
+      ),
     );
   }
 }

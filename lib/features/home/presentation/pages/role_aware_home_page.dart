@@ -7,6 +7,13 @@ import '../../../auth/models/auth_session.dart';
 import '../../../profile/presentation/avatar_picker_modal.dart';
 import '../../../profile/presentation/widgets/profile_avatar.dart';
 import '../../../notifications/presentation/notification_page.dart';
+import '../../../super_admin/presentation/super_admin_admins_page.dart';
+import '../../../super_admin/presentation/super_admin_attendance_page.dart';
+import '../../../super_admin/presentation/super_admin_dashboard_page.dart';
+import '../../../teacher/presentation/teacher_attendance_page.dart';
+import '../../../teacher/presentation/teacher_dashboard_page.dart';
+import '../../../teacher/presentation/teacher_groups_page.dart';
+import '../../../teacher/presentation/teacher_payments_page.dart';
 import '../../../../core/services/notification_service.dart';
 import 'home_page.dart';
 import 'settings_page.dart';
@@ -34,12 +41,10 @@ class RoleAwareHomePage extends StatelessWidget {
           onLogout: onLogout,
           onSessionUpdated: onSessionUpdated,
         );
+      // Admin roli mobil ilovada qo'llab-quvvatlanmaydi — faqat veb-panel.
+      // Mobilda hozircha student, teacher va super_admin qoladi.
       case 'admin':
-        return _AdminShellPage(
-          session: session,
-          onLogout: onLogout,
-          onSessionUpdated: onSessionUpdated,
-        );
+        return _UnsupportedRolePage(onLogout: onLogout);
       case 'super_admin':
         return _SuperAdminHomePage(
           session: session,
@@ -83,33 +88,33 @@ class _TeacherShellPageState extends State<_TeacherShellPage> {
     _RoleTab(
       title: 'Bosh sahifa',
       icon: Icons.home_rounded,
-      builder: (_) => const _CenteredGreeting(
-        title: 'Salom, teacher',
-        subtitle: 'Hozircha bosh sahifa',
+      builder: (_) => TeacherDashboardPage(
+        key: const ValueKey('teacher-dashboard'),
+        session: widget.session,
       ),
     ),
     _RoleTab(
       title: 'Mening guruhlarim',
       icon: Icons.menu_book_rounded,
-      builder: (_) => const _CenteredGreeting(
-        title: 'Mening guruhlarim',
-        subtitle: 'Hozircha bo‘sh sahifa',
+      builder: (_) => TeacherGroupsPage(
+        key: const ValueKey('teacher-groups'),
+        session: widget.session,
       ),
     ),
     _RoleTab(
       title: 'Davomat',
       icon: Icons.bar_chart_rounded,
-      builder: (_) => const _CenteredGreeting(
-        title: 'Davomat',
-        subtitle: 'Hozircha bo‘sh sahifa',
+      builder: (_) => TeacherAttendancePage(
+        key: const ValueKey('teacher-attendance'),
+        session: widget.session,
       ),
     ),
     _RoleTab(
       title: "To'lovlar",
       icon: LucideIcons.wallet2,
-      builder: (_) => const _CenteredGreeting(
-        title: "To'lovlar",
-        subtitle: 'Hozircha bo‘sh sahifa',
+      builder: (_) => TeacherPaymentsPage(
+        key: const ValueKey('teacher-payments'),
+        session: widget.session,
       ),
     ),
     _RoleTab(
@@ -168,8 +173,91 @@ class _TeacherShellPageState extends State<_TeacherShellPage> {
   }
 }
 
-class _AdminShellPage extends StatefulWidget {
-  const _AdminShellPage({
+/// Mobil ilovada qo'llab-quvvatlanmaydigan rol (admin) uchun oyna:
+/// veb-panelga yo'naltiradi va chiqish tugmasi beradi.
+class _UnsupportedRolePage extends StatelessWidget {
+  const _UnsupportedRolePage({required this.onLogout});
+
+  final Future<void> Function() onLogout;
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: const Color(0xFFF6F7FB),
+      body: SafeArea(
+        child: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 76,
+                  height: 76,
+                  decoration: BoxDecoration(
+                    color: AppTheme.brandColor.withValues(alpha: 0.08),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(
+                    Icons.desktop_windows_rounded,
+                    size: 36,
+                    color: AppTheme.brandColor,
+                  ),
+                ),
+                const SizedBox(height: 18),
+                const Text(
+                  'Admin paneli mobilda mavjud emas',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w800,
+                    color: Color(0xFF182033),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                const Text(
+                  'Admin sifatida ishlash uchun veb-saytdagi '
+                  'admin panelidan foydalaning.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 13.5,
+                    fontWeight: FontWeight.w600,
+                    color: Color(0xFF7A8394),
+                    height: 1.5,
+                  ),
+                ),
+                const SizedBox(height: 22),
+                SizedBox(
+                  width: double.infinity,
+                  height: 50,
+                  child: ElevatedButton.icon(
+                    onPressed: onLogout,
+                    icon: const Icon(Icons.logout_rounded, size: 20),
+                    label: const Text('Chiqish'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppTheme.brandColor,
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      textStyle: const TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _SuperAdminHomePage extends StatefulWidget {
+  const _SuperAdminHomePage({
     required this.session,
     required this.onLogout,
     required this.onSessionUpdated,
@@ -180,25 +268,41 @@ class _AdminShellPage extends StatefulWidget {
   final Future<void> Function(AuthSession session) onSessionUpdated;
 
   @override
-  State<_AdminShellPage> createState() => _AdminShellPageState();
+  State<_SuperAdminHomePage> createState() => _SuperAdminHomePageState();
 }
 
-class _AdminShellPageState extends State<_AdminShellPage> {
+class _SuperAdminHomePageState extends State<_SuperAdminHomePage> {
   int _currentIndex = 0;
 
   List<_RoleTab> get _tabs => [
     _RoleTab(
       title: 'Bosh sahifa',
       icon: Icons.home_rounded,
-      builder: (_) => const _CenteredGreeting(
-        title: 'Salom, admin',
-        subtitle: 'Hozircha bosh sahifa',
+      builder: (_) => SuperAdminDashboardPage(
+        key: const ValueKey('super-admin-dashboard'),
+        session: widget.session,
+      ),
+    ),
+    _RoleTab(
+      title: 'Davomat',
+      icon: Icons.bar_chart_rounded,
+      builder: (_) => SuperAdminAttendancePage(
+        key: const ValueKey('super-admin-attendance'),
+        session: widget.session,
+      ),
+    ),
+    _RoleTab(
+      title: 'Adminlar',
+      icon: Icons.manage_accounts_rounded,
+      builder: (_) => SuperAdminAdminsPage(
+        key: const ValueKey('super-admin-admins'),
+        session: widget.session,
       ),
     ),
     _RoleTab(
       title: 'Sozlamalar',
       icon: LucideIcons.cog,
-      builder: (_) => SettingsPage(
+      builder: (context) => SettingsPage(
         session: widget.session,
         onLogout: widget.onLogout,
         onSessionUpdated: widget.onSessionUpdated,
@@ -222,7 +326,7 @@ class _AdminShellPageState extends State<_AdminShellPage> {
             SliverToBoxAdapter(
               child: _RoleHeader(
                 displayName: displayName,
-                roleLabel: 'ADMIN',
+                roleLabel: 'SUPER ADMIN',
                 user: user,
                 session: widget.session,
                 onSessionUpdated: widget.onSessionUpdated,
@@ -238,58 +342,14 @@ class _AdminShellPageState extends State<_AdminShellPage> {
       bottomNavigationBar: _RoleBottomNavigation(
         currentIndex: _currentIndex,
         items: _tabs,
-        showLabels: true,
-        compact: true,
+        showLabels: false,
+        compact: false,
         onTap: (index) {
           if (index == _currentIndex) return;
           setState(() {
             _currentIndex = index;
           });
         },
-      ),
-    );
-  }
-}
-
-class _SuperAdminHomePage extends StatelessWidget {
-  const _SuperAdminHomePage({
-    required this.session,
-    required this.onLogout,
-    required this.onSessionUpdated,
-  });
-
-  final AuthSession session;
-  final Future<void> Function() onLogout;
-  final Future<void> Function(AuthSession session) onSessionUpdated;
-
-  @override
-  Widget build(BuildContext context) {
-    final user = session.user;
-    final displayName = _firstName(
-      user.fullName.isEmpty ? user.username : user.fullName,
-    );
-
-    return Scaffold(
-      backgroundColor: const Color(0xFFF6F7FB),
-      body: SafeArea(
-        bottom: false,
-        child: NestedScrollView(
-          headerSliverBuilder: (context, innerBoxIsScrolled) => [
-            SliverToBoxAdapter(
-              child: _RoleHeader(
-                displayName: displayName,
-                roleLabel: 'SUPER ADMIN',
-                user: user,
-                session: session,
-                onSessionUpdated: onSessionUpdated,
-              ),
-            ),
-          ],
-          body: const _CenteredGreeting(
-            title: 'Salom, super admin',
-            subtitle: 'Hozircha bosh sahifa',
-          ),
-        ),
       ),
     );
   }
@@ -320,7 +380,7 @@ class _RoleHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
+      padding: const EdgeInsets.fromLTRB(12, 10, 12, 6),
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
         decoration: BoxDecoration(
@@ -360,8 +420,8 @@ class _RoleHeader extends StatelessWidget {
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: const TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.w800,
+                      fontSize: 16,
+                      fontWeight: FontWeight.w700,
                       color: Color(0xFF182033),
                     ),
                   ),
@@ -484,7 +544,11 @@ class _RoleBottomNavigation extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
+    // SafeArea: iOS'da bar home-indicator zonasiga va ekranning qayrilgan
+    // burchaklariga kirib ketmasligi kerak
+    return SafeArea(
+      top: false,
+      child: Container(
       margin: EdgeInsets.fromLTRB(compact ? 12 : 10, 0, compact ? 12 : 10, 10),
       padding: EdgeInsets.all(compact ? 4 : 6),
       decoration: BoxDecoration(
@@ -550,6 +614,7 @@ class _RoleBottomNavigation extends StatelessWidget {
           );
         }),
       ),
+      ),
     );
   }
 }
@@ -566,39 +631,3 @@ class _RoleTab {
   final WidgetBuilder builder;
 }
 
-class _CenteredGreeting extends StatelessWidget {
-  const _CenteredGreeting({required this.title, required this.subtitle});
-
-  final String title;
-  final String subtitle;
-
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text(
-            title,
-            textAlign: TextAlign.center,
-            style: const TextStyle(
-              fontSize: 28,
-              fontWeight: FontWeight.w800,
-              color: Color(0xFF182033),
-            ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            subtitle,
-            textAlign: TextAlign.center,
-            style: const TextStyle(
-              fontSize: 15,
-              fontWeight: FontWeight.w500,
-              color: Color(0xFF7B8497),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}

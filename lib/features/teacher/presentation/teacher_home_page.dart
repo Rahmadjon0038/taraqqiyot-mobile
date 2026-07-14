@@ -142,7 +142,7 @@ class _HeaderCard extends StatelessWidget {
             offset: const Offset(0, 14),
           ),
         ],
-        ),
+      ),
       child: Row(
         children: [
           ProfileAvatar(

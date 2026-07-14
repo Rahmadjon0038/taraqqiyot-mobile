@@ -1,13 +1,46 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_markdown/flutter_markdown.dart';
 
 import '../widgets/home_news_carousel.dart';
 
-/// Yangilikning to'liq matni o'qiladigan sahifa.
-/// Karuseldagi "Batafsil" tugmasi shu yerga olib keladi.
-class HomeNewsDetailPage extends StatelessWidget {
-  const HomeNewsDetailPage({super.key, required this.item});
+/// Barcha yangiliklar bitta sahifada o'qiladi.
+/// Karuseldan qaysi yangilik bosilsa, sahifa ochilgach o'sha yangilikka
+/// avtomatik aylantiriladi.
+class HomeNewsListPage extends StatefulWidget {
+  const HomeNewsListPage({
+    super.key,
+    required this.items,
+    this.initialIndex = 0,
+  });
 
-  final HomeNewsItem item;
+  final List<HomeNewsItem> items;
+  final int initialIndex;
+
+  @override
+  State<HomeNewsListPage> createState() => _HomeNewsListPageState();
+}
+
+class _HomeNewsListPageState extends State<HomeNewsListPage> {
+  final Map<int, GlobalKey> _itemKeys = {};
+
+  @override
+  void initState() {
+    super.initState();
+    for (var i = 0; i < widget.items.length; i++) {
+      _itemKeys[i] = GlobalKey();
+    }
+    // Sahifa chizilgach, bosilgan yangilikka silliq o'tamiz
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final targetContext = _itemKeys[widget.initialIndex]?.currentContext;
+      if (targetContext != null && widget.initialIndex > 0) {
+        Scrollable.ensureVisible(
+          targetContext,
+          duration: const Duration(milliseconds: 420),
+          curve: Curves.easeOutCubic,
+        );
+      }
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -51,70 +84,23 @@ class HomeNewsDetailPage extends StatelessWidget {
               ),
             ),
             Expanded(
-              child: ListView(
+              // Barcha yangiliklar birdaniga chiziladi — bosilgan yangilikka
+              // ensureVisible bilan aniq o'tish uchun
+              child: SingleChildScrollView(
                 padding: const EdgeInsets.fromLTRB(12, 8, 12, 20),
-                children: [
-                  // Sarlavhali banner — karuseldagi karta bilan bir xil fon
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(20),
-                    child: Stack(
-                      children: [
-                        Positioned.fill(
-                          child: Image.asset(
-                            'assets/newbg.png',
-                            fit: BoxFit.cover,
-                          ),
-                        ),
-                        Padding(
-                          padding: const EdgeInsets.fromLTRB(16, 18, 16, 18),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              _TagPill(label: item.tag),
-                              const SizedBox(height: 12),
-                              Text(
-                                item.title,
-                                style: const TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 20,
-                                  fontWeight: FontWeight.w900,
-                                  height: 1.25,
-                                ),
-                              ),
-                              const SizedBox(height: 6),
-                              Text(
-                                item.subtitle,
-                                style: TextStyle(
-                                  color: Colors.white.withValues(alpha: 0.88),
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 14),
-                  Container(
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(20),
-                      border: Border.all(color: const Color(0xFFE4E9F1)),
-                    ),
-                    child: Text(
-                      item.body,
-                      style: const TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w500,
-                        height: 1.6,
-                        color: Color(0xFF3A4454),
+                child: Column(
+                  children: [
+                    for (var i = 0; i < widget.items.length; i++) ...[
+                      _NewsArticleCard(
+                        key: _itemKeys[i],
+                        item: widget.items[i],
+                        highlighted: i == widget.initialIndex,
                       ),
-                    ),
-                  ),
-                ],
+                      if (i < widget.items.length - 1)
+                        const SizedBox(height: 12),
+                    ],
+                  ],
+                ),
               ),
             ),
           ],
@@ -124,34 +110,102 @@ class HomeNewsDetailPage extends StatelessWidget {
   }
 }
 
-class _TagPill extends StatelessWidget {
-  const _TagPill({required this.label});
+/// Bitta yangilik kartasi: sarlavha + markdown formatidagi matn
+class _NewsArticleCard extends StatelessWidget {
+  const _NewsArticleCard({
+    super.key,
+    required this.item,
+    this.highlighted = false,
+  });
 
-  final String label;
+  final HomeNewsItem item;
+
+  /// Karuseldan bosib kelingan yangilik biroz ajralib turadi
+  final bool highlighted;
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(999),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const Icon(
-            Icons.campaign_rounded,
-            size: 16,
-            color: Color(0xFFA70E07),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: highlighted ? const Color(0xFFA70E07) : const Color(0xFFE4E9F1),
+          width: highlighted ? 1.4 : 1,
+        ),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x0C000000),
+            blurRadius: 14,
+            offset: Offset(0, 6),
           ),
-          const SizedBox(width: 6),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
           Text(
-            label,
+            item.title,
             style: const TextStyle(
-              color: Color(0xFFA70E07),
-              fontSize: 12,
-              fontWeight: FontWeight.w800,
+              fontSize: 17,
+              fontWeight: FontWeight.w900,
+              height: 1.3,
+              color: Color(0xFF182033),
+            ),
+          ),
+          if (item.subtitle.trim().isNotEmpty) ...[
+            const SizedBox(height: 4),
+            Text(
+              item.subtitle,
+              style: const TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: Color(0xFF64748B),
+              ),
+            ),
+          ],
+          const SizedBox(height: 10),
+          MarkdownBody(
+            data: item.body,
+            styleSheet: MarkdownStyleSheet(
+              p: const TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w500,
+                height: 1.6,
+                color: Color(0xFF3A4454),
+              ),
+              h1: const TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.w900,
+                color: Color(0xFF182033),
+              ),
+              h2: const TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w800,
+                color: Color(0xFF182033),
+              ),
+              h3: const TextStyle(
+                fontSize: 15,
+                fontWeight: FontWeight.w800,
+                color: Color(0xFF182033),
+              ),
+              strong: const TextStyle(
+                fontWeight: FontWeight.w800,
+                color: Color(0xFF182033),
+              ),
+              listBullet: const TextStyle(
+                fontSize: 14,
+                color: Color(0xFF3A4454),
+              ),
+              blockquoteDecoration: BoxDecoration(
+                color: const Color(0xFFF6F8FB),
+                borderRadius: BorderRadius.circular(10),
+                border: const Border(
+                  left: BorderSide(color: Color(0xFFA70E07), width: 3),
+                ),
+              ),
             ),
           ),
         ],

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../features/auth/data/auth_service.dart';
 import '../features/auth/data/auth_storage.dart';
@@ -167,6 +168,12 @@ class _TaraqqiyotAppState extends State<TaraqqiyotApp> {
       title: 'Taraqqiyot Teaching Center',
       theme: AppTheme.light(),
       navigatorKey: NotificationService.instance.navigatorKey,
+      // App foni oq bo'lgani uchun status bar (soat, batareya, signal)
+      // barcha sahifalarda qora rangda ko'rinishi kerak
+      builder: (context, child) => AnnotatedRegion<SystemUiOverlayStyle>(
+        value: SystemUiOverlayStyle.dark,
+        child: child ?? const SizedBox.shrink(),
+      ),
       onGenerateRoute: (settings) {
         if (settings.name == NotificationDetailPage.routeName) {
           final payload = settings.arguments;
@@ -181,22 +188,20 @@ class _TaraqqiyotAppState extends State<TaraqqiyotApp> {
         }
         return null;
       },
-      home: _bootstrapping
-          ? const SplashPage()
-          : AnimatedSwitcher(
-              duration: const Duration(milliseconds: 250),
-              child: _session == null
-                  ? LoginPage(
-                      key: const ValueKey('login'),
-                      onLogin: _handleLogin,
-                    )
-                  : RoleAwareHomePage(
-                      key: const ValueKey('main-home'),
-                      session: _session!,
-                      onSessionUpdated: _handleSessionUpdated,
-                      onLogout: _handleLogout,
-                    ),
-            ),
+      // Splash ham switcher ichida — keyingi sahifaga silliq fade bilan o'tadi
+      home: AnimatedSwitcher(
+        duration: const Duration(milliseconds: 300),
+        child: _bootstrapping
+            ? const SplashPage(key: ValueKey('splash'))
+            : _session == null
+            ? LoginPage(key: const ValueKey('login'), onLogin: _handleLogin)
+            : RoleAwareHomePage(
+                key: const ValueKey('main-home'),
+                session: _session!,
+                onSessionUpdated: _handleSessionUpdated,
+                onLogout: _handleLogout,
+              ),
+      ),
     );
   }
 }

@@ -99,16 +99,67 @@ class _StudentPointReportsPageState extends State<StudentPointReportsPage> {
     }
   }
 
-  void _selectGroup(int groupId) {
-    if (_selectedGroupId == groupId) return;
+  void _selectGroup(StudentGroupSummary group) {
+    if (_selectedGroupId == group.groupId) return;
     setState(() {
-      _selectedGroupId = groupId;
+      _selectedGroupId = group.groupId;
+      // Yangi guruhning oylar oralig'iga sig'masa joriy oyga qaytamiz
+      if (!_monthOptionsFor(group).contains(_selectedMonth)) {
+        _selectedMonth = _currentMonthKey();
+      }
       _reportsFuture = _service.fetchMyPointReports(
         widget.session,
         month: _selectedMonth,
         groupId: _selectedGroupId,
       );
     });
+  }
+
+  void _selectMonth(String monthKey) {
+    if (_selectedMonth == monthKey) return;
+    setState(() {
+      _selectedMonth = monthKey;
+      if (_selectedGroupId != null) {
+        _reportsFuture = _service.fetchMyPointReports(
+          widget.session,
+          month: monthKey,
+          groupId: _selectedGroupId,
+        );
+      }
+    });
+  }
+
+  /// Tanlangan guruhda o'qish boshlangan oydan joriy oygacha (joriy oy
+  /// birinchi). Boshlanish sanasi topilmasa faqat joriy oy chiqadi.
+  List<String> _monthOptionsFor(StudentGroupSummary? group) {
+    final now = DateTime.now();
+    final current = DateTime(now.year, now.month);
+    final startDate =
+        _parseDdMmYyyy(group?.startDate ?? '') ??
+        _parseDdMmYyyy(group?.myJoinDate ?? '');
+    var start = startDate == null
+        ? current
+        : DateTime(startDate.year, startDate.month);
+    if (start.isAfter(current)) start = current;
+
+    final months = <String>[];
+    var cursor = current;
+    while (!cursor.isBefore(start) && months.length < 24) {
+      months.add('${cursor.year}-${cursor.month.toString().padLeft(2, '0')}');
+      cursor = DateTime(cursor.year, cursor.month - 1);
+    }
+    return months;
+  }
+
+  static DateTime? _parseDdMmYyyy(String value) {
+    final parts = value.trim().replaceAll('/', '.').split('.');
+    if (parts.length != 3) return null;
+    final day = int.tryParse(parts[0]);
+    final month = int.tryParse(parts[1]);
+    final year = int.tryParse(parts[2]);
+    if (day == null || month == null || year == null) return null;
+    if (month < 1 || month > 12) return null;
+    return DateTime(year, month, day);
   }
 
   @override
@@ -144,22 +195,115 @@ class _StudentPointReportsPageState extends State<StudentPointReportsPage> {
                 if (groups.isEmpty) {
                   return const _EmptyCard();
                 }
+                // Tanlangan guruh — oylar oralig'i shu guruhga qarab quriladi
+                StudentGroupSummary? selectedGroup;
+                for (final group in groups) {
+                  if (group.groupId == _selectedGroupId) {
+                    selectedGroup = group;
+                    break;
+                  }
+                }
+                final months = _monthOptionsFor(selectedGroup);
+
                 return Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     _MonthHeader(monthLabel: _monthLabel(_selectedMonth)),
                     const SizedBox(height: 10),
-                    Wrap(
-                      spacing: 8,
-                      runSpacing: 8,
-                      children: [
-                        for (final group in groups)
-                          ChoiceChip(
-                            label: Text(group.groupName),
-                            selected: group.groupId == _selectedGroupId,
-                            onSelected: (_) => _selectGroup(group.groupId),
-                          ),
-                      ],
+                    // Guruh tanlash chiplari
+                    SizedBox(
+                      height: 36,
+                      child: ListView.separated(
+                        scrollDirection: Axis.horizontal,
+                        itemCount: groups.length,
+                        separatorBuilder: (context, index) =>
+                            const SizedBox(width: 6),
+                        itemBuilder: (context, index) {
+                          final group = groups[index];
+                          final selected = group.groupId == _selectedGroupId;
+                          return GestureDetector(
+                            behavior: HitTestBehavior.opaque,
+                            onTap: () => _selectGroup(group),
+                            child: AnimatedContainer(
+                              duration: const Duration(milliseconds: 180),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 14,
+                              ),
+                              alignment: Alignment.center,
+                              decoration: BoxDecoration(
+                                color: selected
+                                    ? AppTheme.brandColor
+                                    : Colors.white,
+                                borderRadius: BorderRadius.circular(999),
+                                border: Border.all(
+                                  color: selected
+                                      ? AppTheme.brandColor
+                                      : const Color(0xFFD6DDEA),
+                                ),
+                              ),
+                              child: Text(
+                                group.groupName,
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w800,
+                                  color: selected
+                                      ? Colors.white
+                                      : const Color(0xFF475569),
+                                ),
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    // Oy tanlash — o'tgan oylar hisobotini ko'rish uchun
+                    SizedBox(
+                      height: 32,
+                      child: ListView.separated(
+                        scrollDirection: Axis.horizontal,
+                        itemCount: months.length,
+                        separatorBuilder: (context, index) =>
+                            const SizedBox(width: 6),
+                        itemBuilder: (context, index) {
+                          final month = months[index];
+                          final selected = month == _selectedMonth;
+                          return GestureDetector(
+                            behavior: HitTestBehavior.opaque,
+                            onTap: () => _selectMonth(month),
+                            child: AnimatedContainer(
+                              duration: const Duration(milliseconds: 180),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                              ),
+                              alignment: Alignment.center,
+                              decoration: BoxDecoration(
+                                color: selected
+                                    ? AppTheme.brandColor.withValues(
+                                        alpha: 0.10,
+                                      )
+                                    : Colors.transparent,
+                                borderRadius: BorderRadius.circular(999),
+                                border: Border.all(
+                                  color: selected
+                                      ? AppTheme.brandColor
+                                      : const Color(0xFFD6DDEA),
+                                ),
+                              ),
+                              child: Text(
+                                _monthLabel(month),
+                                style: TextStyle(
+                                  fontSize: 11.5,
+                                  fontWeight: FontWeight.w700,
+                                  color: selected
+                                      ? AppTheme.brandColor
+                                      : const Color(0xFF475569),
+                                ),
+                              ),
+                            ),
+                          );
+                        },
+                      ),
                     ),
                     const SizedBox(height: 12),
                     if (_reportsFuture == null)
@@ -223,31 +367,58 @@ class _MonthHeader extends StatelessWidget {
       width: double.infinity,
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: BorderRadius.circular(20),
         gradient: const LinearGradient(
-          colors: [Color(0xFF0EA5E9), Color(0xFF2563EB)],
+          colors: [Color(0xFF7C0A05), Color(0xFFA70E07), Color(0xFFD32F2F)],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x22000000),
+            blurRadius: 18,
+            offset: Offset(0, 8),
+          ),
+        ],
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      child: Row(
         children: [
-          const Text(
-            'Joriy oy hisobotlari',
-            style: TextStyle(
+          Container(
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.16),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: const Icon(
+              Icons.receipt_long_rounded,
               color: Colors.white,
-              fontSize: 12,
-              fontWeight: FontWeight.w700,
+              size: 20,
             ),
           ),
-          const SizedBox(height: 6),
-          Text(
-            monthLabel,
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 20,
-              fontWeight: FontWeight.w800,
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Kunlik hisobot',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 15,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  monthLabel,
+                  style: TextStyle(
+                    color: Colors.white.withValues(alpha: 0.85),
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ],
             ),
           ),
         ],
@@ -263,38 +434,63 @@ class _SummaryCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Ball yig'indilari manba bo'yicha: davomat uchun avtomatik berilgan
+    // balllar va teacher qo'lda qo'ygan qo'shimcha balllar
+    var attendancePoints = 0;
+    var manualPoints = 0;
+    for (final event in report.events) {
+      if (event.sourceType == 'attendance') {
+        attendancePoints += event.points;
+      } else {
+        manualPoints += event.points;
+      }
+    }
+
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: const Color(0xFFE6EBF3)),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: const Color(0xFFE4E9F1)),
       ),
       child: Row(
         children: [
-          Expanded(
-            child: _MiniStat(
-              label: 'Jami ball',
-              value: '${report.summary.totalPoints}',
-              color: const Color(0xFF6D4DF6),
-            ),
+          _MiniStat(
+            icon: Icons.star_rounded,
+            label: 'Jami ball',
+            value: '${report.summary.totalPoints}',
+            color: AppTheme.brandColor,
           ),
-          Expanded(
-            child: _MiniStat(
-              label: 'Davomat',
-              value: '${report.summary.attendanceEvents}',
-              color: const Color(0xFF0F766E),
-            ),
+          const _MiniStatDivider(),
+          _MiniStat(
+            icon: Icons.how_to_reg_rounded,
+            label: 'Davomat balli',
+            value: '$attendancePoints',
+            color: const Color(0xFF0F766E),
           ),
-          Expanded(
-            child: _MiniStat(
-              label: 'Qo‘shimcha',
-              value: '${report.summary.manualEvents}',
-              color: const Color(0xFFDB2777),
-            ),
+          const _MiniStatDivider(),
+          _MiniStat(
+            icon: Icons.auto_awesome_rounded,
+            label: 'Qo\'shimcha ball',
+            value: '$manualPoints',
+            color: const Color(0xFFD4A017),
           ),
         ],
       ),
+    );
+  }
+}
+
+class _MiniStatDivider extends StatelessWidget {
+  const _MiniStatDivider();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 1,
+      height: 34,
+      margin: const EdgeInsets.symmetric(horizontal: 8),
+      color: const Color(0xFFE4E9F1),
     );
   }
 }
@@ -318,15 +514,11 @@ class _DailyStatsCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
-            'Kunlik statistika',
-            style: TextStyle(
-              fontSize: 15,
-              fontWeight: FontWeight.w800,
-              color: Color(0xFF182033),
-            ),
+          const _SectionHeader(
+            icon: Icons.calendar_month_rounded,
+            title: 'Dars kunlari bo\'yicha',
           ),
-          const SizedBox(height: 10),
+          const SizedBox(height: 12),
           if (dailyBreakdown.isEmpty)
             const Text(
               'Hozircha kunlik ma\'lumot yo\'q',
@@ -337,72 +529,104 @@ class _DailyStatsCard extends StatelessWidget {
               ),
             )
           else
-            for (final day in dailyBreakdown) ...[
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Container(
-                    width: 48,
-                    height: 48,
-                    decoration: BoxDecoration(
-                      color: day.dayKey == todayKey
-                          ? const Color(0xFFECFDF3)
-                          : const Color(0xFFF4F6FA),
-                      borderRadius: BorderRadius.circular(14),
-                    ),
-                    alignment: Alignment.center,
-                    child: Text(
-                      day.dayKey == todayKey ? 'Bugun' : _dayShortLabel(day.dayKey),
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        fontSize: day.dayKey == todayKey ? 10.5 : 11,
-                        fontWeight: FontWeight.w800,
-                        color: day.dayKey == todayKey
-                            ? const Color(0xFF0F766E)
-                            : const Color(0xFF445064),
-                        height: 1.05,
+            for (var i = 0; i < dailyBreakdown.length; i++) ...[
+              Builder(
+                builder: (context) {
+                  final day = dailyBreakdown[i];
+                  final isToday = day.dayKey == todayKey;
+                  final positive = day.totalPoints >= 0;
+                  return Row(
+                    children: [
+                      // Sana kvadrati
+                      Container(
+                        width: 44,
+                        height: 44,
+                        decoration: BoxDecoration(
+                          color: isToday
+                              ? AppTheme.brandColor.withValues(alpha: 0.08)
+                              : const Color(0xFFF4F6FA),
+                          borderRadius: BorderRadius.circular(13),
+                          border: isToday
+                              ? Border.all(
+                                  color: AppTheme.brandColor.withValues(
+                                    alpha: 0.35,
+                                  ),
+                                )
+                              : null,
+                        ),
+                        alignment: Alignment.center,
+                        child: Text(
+                          isToday ? 'Bugun' : _dayShortLabel(day.dayKey),
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            fontSize: isToday ? 10 : 14,
+                            fontWeight: FontWeight.w900,
+                            color: isToday
+                                ? AppTheme.brandColor
+                                : const Color(0xFF445064),
+                            height: 1.05,
+                          ),
+                        ),
                       ),
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          _formatDayKey(day.dayKey),
-                          style: const TextStyle(
-                            fontSize: 13.5,
-                            fontWeight: FontWeight.w800,
-                            color: Color(0xFF182033),
-                          ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              _formatDayKey(day.dayKey),
+                              style: const TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w800,
+                                color: Color(0xFF182033),
+                              ),
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              '${day.totalEvents} ta yozuv',
+                              style: const TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w600,
+                                color: Color(0xFF8A93A5),
+                              ),
+                            ),
+                          ],
                         ),
-                        const SizedBox(height: 2),
-                        Text(
-                          day.dayKey == todayKey
-                              ? 'Bugun ${day.totalPoints} ball oldi'
-                              : '${day.totalPoints} ball oldi',
-                          style: const TextStyle(
+                      ),
+                      const SizedBox(width: 8),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 9,
+                          vertical: 4,
+                        ),
+                        decoration: BoxDecoration(
+                          color: positive
+                              ? const Color(0xFF16934F).withValues(alpha: 0.08)
+                              : const Color(0xFFDC2626).withValues(alpha: 0.08),
+                          borderRadius: BorderRadius.circular(999),
+                        ),
+                        child: Text(
+                          positive
+                              ? '+${day.totalPoints} ball'
+                              : '${day.totalPoints} ball',
+                          style: TextStyle(
                             fontSize: 11.5,
-                            fontWeight: FontWeight.w600,
-                            color: Color(0xFF667085),
+                            fontWeight: FontWeight.w900,
+                            color: positive
+                                ? const Color(0xFF16934F)
+                                : const Color(0xFFDC2626),
                           ),
                         ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Text(
-                    '${day.totalPoints} ball',
-                    style: const TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w800,
-                      color: Color(0xFF0F766E),
-                    ),
-                  ),
-                ],
+                      ),
+                    ],
+                  );
+                },
               ),
-              const SizedBox(height: 10),
+              if (i < dailyBreakdown.length - 1) ...[
+                const SizedBox(height: 8),
+                const Divider(height: 1, color: Color(0xFFEDF1F7)),
+                const SizedBox(height: 8),
+              ],
             ],
         ],
       ),
@@ -410,41 +634,87 @@ class _DailyStatsCard extends StatelessWidget {
   }
 }
 
+/// Karta sarlavhasi: brend gradientli ikonka + matn
+class _SectionHeader extends StatelessWidget {
+  const _SectionHeader({required this.icon, required this.title});
+
+  final IconData icon;
+  final String title;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Container(
+          width: 30,
+          height: 30,
+          decoration: BoxDecoration(
+            gradient: const LinearGradient(
+              colors: [Color(0xFFD32F2F), Color(0xFF7C0A05)],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: Icon(icon, size: 16, color: Colors.white),
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Text(
+            title,
+            style: const TextStyle(
+              fontSize: 13.5,
+              fontWeight: FontWeight.w900,
+              color: Color(0xFF182033),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
 class _MiniStat extends StatelessWidget {
   const _MiniStat({
+    required this.icon,
     required this.label,
     required this.value,
     required this.color,
   });
 
+  final IconData icon;
   final String label;
   final String value;
   final Color color;
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      children: [
-        Text(
-          label,
-          textAlign: TextAlign.center,
-          style: const TextStyle(
-            fontSize: 11,
-            fontWeight: FontWeight.w700,
-            color: Color(0xFF7B8495),
+    return Expanded(
+      child: Column(
+        children: [
+          Icon(icon, size: 16, color: color),
+          const SizedBox(height: 4),
+          Text(
+            value,
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontSize: 17,
+              fontWeight: FontWeight.w900,
+              color: color,
+            ),
           ),
-        ),
-        const SizedBox(height: 5),
-        Text(
-          value,
-          textAlign: TextAlign.center,
-          style: TextStyle(
-            fontSize: 20,
-            fontWeight: FontWeight.w900,
-            color: color,
+          const SizedBox(height: 1),
+          Text(
+            label,
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+              fontSize: 9.5,
+              fontWeight: FontWeight.w700,
+              color: Color(0xFF8A93A5),
+            ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 }
@@ -466,15 +736,11 @@ class _BreakdownCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
-            'Guruhlar bo‘yicha',
-            style: TextStyle(
-              fontSize: 15,
-              fontWeight: FontWeight.w800,
-              color: Color(0xFF182033),
-            ),
+          const _SectionHeader(
+            icon: Icons.groups_rounded,
+            title: 'Guruhlar bo\'yicha',
           ),
-          const SizedBox(height: 10),
+          const SizedBox(height: 12),
           if (breakdown.isEmpty)
             const Text(
               'Hozircha ma\'lumot yo\'q',
@@ -492,18 +758,28 @@ class _BreakdownCard extends StatelessWidget {
                     child: Text(
                       item.groupName,
                       style: const TextStyle(
-                        fontSize: 13.5,
-                        fontWeight: FontWeight.w700,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w800,
                         color: Color(0xFF182033),
                       ),
                     ),
                   ),
-                  Text(
-                    '${item.totalPoints} ball',
-                    style: const TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w800,
-                      color: Color(0xFF6D4DF6),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 9,
+                      vertical: 4,
+                    ),
+                    decoration: BoxDecoration(
+                      color: AppTheme.brandColor.withValues(alpha: 0.08),
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                    child: Text(
+                      '${item.totalPoints} ball',
+                      style: const TextStyle(
+                        fontSize: 11.5,
+                        fontWeight: FontWeight.w900,
+                        color: AppTheme.brandColor,
+                      ),
                     ),
                   ),
                 ],
@@ -533,18 +809,14 @@ class _EventsCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
-            'So‘nggi yozuvlar',
-            style: TextStyle(
-              fontSize: 15,
-              fontWeight: FontWeight.w800,
-              color: Color(0xFF182033),
-            ),
+          const _SectionHeader(
+            icon: Icons.history_rounded,
+            title: 'So\'nggi yozuvlar',
           ),
-          const SizedBox(height: 10),
+          const SizedBox(height: 12),
           if (events.isEmpty)
             const Text(
-              'Hozircha yozuv yo‘q',
+              'Hozircha yozuv yo\'q',
               style: TextStyle(
                 fontSize: 12.5,
                 fontWeight: FontWeight.w600,
@@ -552,76 +824,136 @@ class _EventsCard extends StatelessWidget {
               ),
             )
           else
-            for (final event in events) ...[
+            for (var i = 0; i < events.length; i++) ...[
+              _EventRow(event: events[i]),
+              if (i < events.length - 1) ...[
+                const SizedBox(height: 10),
+                const Divider(height: 1, color: Color(0xFFEDF1F7)),
+                const SizedBox(height: 10),
+              ],
+            ],
+        ],
+      ),
+    );
+  }
+}
+
+/// Bitta ball yozuvi: ball belgisi, sarlavha, teacher izohi va vaqt
+class _EventRow extends StatelessWidget {
+  const _EventRow({required this.event});
+
+  final StudentPointEvent event;
+
+  @override
+  Widget build(BuildContext context) {
+    final positive = event.points >= 0;
+    final color = positive ? const Color(0xFF16934F) : const Color(0xFFDC2626);
+
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          width: 38,
+          height: 38,
+          decoration: BoxDecoration(
+            color: color.withValues(alpha: 0.08),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          alignment: Alignment.center,
+          child: Text(
+            positive ? '+${event.points}' : '${event.points}',
+            style: TextStyle(
+              fontSize: 11.5,
+              fontWeight: FontWeight.w900,
+              color: color,
+            ),
+          ),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
               Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Container(
-                    width: 38,
-                    height: 38,
-                    decoration: BoxDecoration(
-                      color: event.points >= 0
-                          ? const Color(0xFFEAF0FF)
-                          : const Color(0xFFFFE4E6),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    alignment: Alignment.center,
+                  Expanded(
                     child: Text(
-                      event.points >= 0 ? '+${event.points}' : '${event.points}',
-                      style: TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w900,
-                        color: event.points >= 0
-                            ? const Color(0xFF4C63D2)
-                            : const Color(0xFFB91C1C),
+                      event.title,
+                      style: const TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w800,
+                        color: Color(0xFF182033),
                       ),
                     ),
                   ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          event.title,
-                          style: const TextStyle(
-                            fontSize: 13.5,
-                            fontWeight: FontWeight.w800,
-                            color: Color(0xFF182033),
-                          ),
-                        ),
-                        const SizedBox(height: 2),
-                        Text(
-                          [
-                            if (event.groupName.isNotEmpty) event.groupName,
-                            if (event.description.isNotEmpty) event.description,
-                          ].join(' • '),
-                          style: const TextStyle(
-                            fontSize: 11.5,
-                            fontWeight: FontWeight.w600,
-                            color: Color(0xFF667085),
-                          ),
-                        ),
-                        const SizedBox(height: 2),
-                        Text(
-                          event.dayKey == _todayKey()
-                              ? 'Bugun, ${event.createdTime}'
-                              : '${_formatDayKey(event.dayKey)} • ${event.createdTime}',
-                          style: const TextStyle(
-                            fontSize: 10.5,
-                            fontWeight: FontWeight.w600,
-                            color: Color(0xFF8A93A5),
-                          ),
-                        ),
-                      ],
+                  const SizedBox(width: 8),
+                  Text(
+                    event.dayKey == _todayKey()
+                        ? 'Bugun, ${event.createdTime}'
+                        : '${_dayShortLabel(event.dayKey)}-kun, ${event.createdTime}',
+                    style: const TextStyle(
+                      fontSize: 10,
+                      fontWeight: FontWeight.w700,
+                      color: Color(0xFF8A93A5),
                     ),
                   ),
                 ],
               ),
-              const SizedBox(height: 12),
+              if (event.groupName.isNotEmpty) ...[
+                const SizedBox(height: 2),
+                Text(
+                  event.groupName,
+                  style: const TextStyle(
+                    fontSize: 10.5,
+                    fontWeight: FontWeight.w600,
+                    color: Color(0xFF8A93A5),
+                  ),
+                ),
+              ],
+              // Teacher yozgan izoh — alohida ajralib turadigan blok
+              if (event.description.trim().isNotEmpty) ...[
+                const SizedBox(height: 6),
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 8,
+                  ),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF6F8FB),
+                    borderRadius: BorderRadius.circular(10),
+                    border: const Border(
+                      left: BorderSide(color: Color(0xFFA70E07), width: 3),
+                    ),
+                  ),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Icon(
+                        Icons.chat_bubble_outline_rounded,
+                        size: 13,
+                        color: Color(0xFF7B8495),
+                      ),
+                      const SizedBox(width: 6),
+                      Expanded(
+                        child: Text(
+                          event.description.trim(),
+                          style: const TextStyle(
+                            fontSize: 11.5,
+                            fontWeight: FontWeight.w600,
+                            color: Color(0xFF3A4454),
+                            height: 1.35,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
             ],
-        ],
-      ),
+          ),
+        ),
+      ],
     );
   }
 }

@@ -31,24 +31,34 @@ String _formatDisplayDate(String rawValue) {
   final value = rawValue.trim();
   if (value.isEmpty) return '';
 
-  final dateTimePart = value.split(' ').first;
-  final parts = dateTimePart.split(RegExp(r'[.\-/]'));
-  if (parts.length != 3) {
-    return value;
-  }
-
   int? day;
   int? month;
   int? year;
 
-  if (parts[0].length == 4) {
-    year = int.tryParse(parts[0]);
-    month = int.tryParse(parts[1]);
-    day = int.tryParse(parts[2]);
+  // ISO format (2026-07-10T10:53:34.888Z) — DateTime o'zi tushunadi,
+  // lokal vaqtga o'girib sanani olamiz
+  final isoParsed = DateTime.tryParse(value);
+  if (isoParsed != null) {
+    final local = isoParsed.toLocal();
+    day = local.day;
+    month = local.month;
+    year = local.year;
   } else {
-    day = int.tryParse(parts[0]);
-    month = int.tryParse(parts[1]);
-    year = int.tryParse(parts[2]);
+    final dateTimePart = value.split(' ').first;
+    final parts = dateTimePart.split(RegExp(r'[.\-/]'));
+    if (parts.length != 3) {
+      return value;
+    }
+
+    if (parts[0].length == 4) {
+      year = int.tryParse(parts[0]);
+      month = int.tryParse(parts[1]);
+      day = int.tryParse(parts[2]);
+    } else {
+      day = int.tryParse(parts[0]);
+      month = int.tryParse(parts[1]);
+      year = int.tryParse(parts[2]);
+    }
   }
 
   if (day == null || month == null || year == null) {
@@ -244,36 +254,164 @@ class _SummaryHero extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(18),
+      width: double.infinity,
+      clipBehavior: Clip.antiAlias,
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(28),
-        border: Border.all(color: const Color(0xFFE2E8F0)),
+        borderRadius: BorderRadius.circular(22),
+        gradient: const LinearGradient(
+          colors: [Color(0xFF7C0A05), Color(0xFFA70E07), Color(0xFFD32F2F)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
         boxShadow: const [
           BoxShadow(
-            color: Color(0x0F000000),
+            color: Color(0x22000000),
             blurRadius: 18,
             offset: Offset(0, 8),
           ),
         ],
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      child: Stack(
         children: [
-          Text(
-            'To\'lovlarim',
-            style: const TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.w800,
-              color: Color(0xFF182033),
+          Positioned(
+            right: -18,
+            bottom: -22,
+            child: Transform.rotate(
+              angle: 0.18,
+              child: Icon(
+                Icons.account_balance_wallet_rounded,
+                size: 110,
+                color: Colors.white.withValues(alpha: 0.12),
+              ),
             ),
           ),
-          const SizedBox(height: 4),
-          Text(
-            '$monthLabel uchun oylik to\'lovlar',
-            style: const TextStyle(fontSize: 12.5, color: Color(0xFF7B8497)),
+          Positioned(
+            right: 76,
+            top: -14,
+            child: Transform.rotate(
+              angle: -0.3,
+              child: Icon(
+                Icons.payments_rounded,
+                size: 56,
+                color: Colors.white.withValues(alpha: 0.08),
+              ),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(6),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.16),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: const Icon(
+                        Icons.account_balance_wallet_rounded,
+                        color: Colors.white,
+                        size: 16,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'To\'lovlarim',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 13,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                          Text(
+                            monthLabel,
+                            style: TextStyle(
+                              color: Colors.white.withValues(alpha: 0.85),
+                              fontSize: 11,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 14),
+                Row(
+                  children: [
+                    _HeroStat(
+                      label: 'Kerak',
+                      value: _formatMoney(stats.totalRequired),
+                    ),
+                    const SizedBox(width: 8),
+                    _HeroStat(
+                      label: 'To\'langan',
+                      value: _formatMoney(stats.totalPaid),
+                    ),
+                    const SizedBox(width: 8),
+                    _HeroStat(
+                      label: 'Qarz',
+                      value: _formatMoney(stats.totalDebt),
+                    ),
+                  ],
+                ),
+              ],
+            ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _HeroStat extends StatelessWidget {
+  const _HeroStat({required this.label, required this.value});
+
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    return Expanded(
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 8),
+        decoration: BoxDecoration(
+          color: Colors.white.withValues(alpha: 0.14),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: Colors.white.withValues(alpha: 0.12)),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              label,
+              style: TextStyle(
+                color: Colors.white.withValues(alpha: 0.78),
+                fontSize: 9.5,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            const SizedBox(height: 2),
+            FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Text(
+                value,
+                maxLines: 1,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 12.5,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -297,14 +435,14 @@ class _MonthSelector extends StatelessWidget {
     }
 
     return SizedBox(
-      height: 48,
+      height: 36,
       child: SingleChildScrollView(
         scrollDirection: Axis.horizontal,
         physics: const BouncingScrollPhysics(),
         child: Row(
           children: [
             for (var index = 0; index < months.length; index++) ...[
-              if (index > 0) const SizedBox(width: 8),
+              if (index > 0) const SizedBox(width: 6),
               Builder(
                 builder: (context) {
                   final month = months[index];
@@ -317,8 +455,8 @@ class _MonthSelector extends StatelessWidget {
                       borderRadius: BorderRadius.circular(999),
                       child: Container(
                         padding: const EdgeInsets.symmetric(
-                          horizontal: 16,
-                          vertical: 12,
+                          horizontal: 13,
+                          vertical: 8,
                         ),
                         decoration: BoxDecoration(
                           borderRadius: BorderRadius.circular(999),
@@ -331,7 +469,7 @@ class _MonthSelector extends StatelessWidget {
                         child: Text(
                           _formatMonthLabel(month),
                           style: TextStyle(
-                            fontSize: 13,
+                            fontSize: 12,
                             fontWeight: FontWeight.w700,
                             color: selected
                                 ? Colors.white
@@ -362,12 +500,15 @@ class _PaymentCard extends StatelessWidget {
     final statusColor = _paymentStatusColor(enrollment.paymentStatus);
     final monthlyStatus = _monthlyStatusLabel(enrollment.monthlyStatus);
     final monthlyStatusColor = _monthlyStatusColor(enrollment.monthlyStatus);
+    final paidRatio = enrollment.requiredAmount > 0
+        ? (enrollment.paidAmount / enrollment.requiredAmount).clamp(0.0, 1.0)
+        : 0.0;
 
     return Container(
-      padding: const EdgeInsets.all(16),
+      clipBehavior: Clip.antiAlias,
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(24),
+        borderRadius: BorderRadius.circular(20),
         border: Border.all(color: const Color(0xFFE2E8F0)),
         boxShadow: const [
           BoxShadow(
@@ -377,103 +518,263 @@ class _PaymentCard extends StatelessWidget {
           ),
         ],
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      child: Stack(
         children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(
-                child: Column(
+          Positioned(
+            right: -16,
+            bottom: -18,
+            child: Transform.rotate(
+              angle: 0.18,
+              child: Icon(
+                Icons.receipt_long_rounded,
+                size: 84,
+                color: AppTheme.brandColor.withValues(alpha: 0.05),
+              ),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.all(14),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      enrollment.groupName.isEmpty
-                          ? 'Guruh'
-                          : enrollment.groupName,
-                      style: const TextStyle(
-                        fontSize: 17,
-                        fontWeight: FontWeight.w800,
-                        color: Color(0xFF182033),
+                    Container(
+                      width: 40,
+                      height: 40,
+                      decoration: BoxDecoration(
+                        gradient: const LinearGradient(
+                          colors: [Color(0xFFD32F2F), Color(0xFF7C0A05)],
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                        ),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: const Icon(
+                        Icons.receipt_long_rounded,
+                        size: 20,
+                        color: Colors.white,
                       ),
                     ),
-                    const SizedBox(height: 4),
-                    Text(
-                      '${enrollment.subjectName} • ${enrollment.teacherName}',
-                      style: const TextStyle(
-                        fontSize: 12.5,
-                        color: Color(0xFF64748B),
-                        height: 1.3,
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            enrollment.groupName.isEmpty
+                                ? 'Guruh'
+                                : enrollment.groupName,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              fontSize: 15,
+                              fontWeight: FontWeight.w900,
+                              color: Color(0xFF182033),
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            '${enrollment.subjectName} • ${enrollment.teacherName}',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              fontSize: 11.5,
+                              fontWeight: FontWeight.w600,
+                              color: Color(0xFF64748B),
+                            ),
+                          ),
+                        ],
                       ),
+                    ),
+                    const SizedBox(width: 8),
+                    _StatusPill(label: paymentStatus, color: statusColor),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                // Summalar — uch ustunli ixcham blok
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 10,
+                  ),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF8FAFC),
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  child: Column(
+                    children: [
+                      Row(
+                        children: [
+                          _AmountCol(
+                            label: 'Kerak',
+                            value: _formatMoney(enrollment.requiredAmount),
+                            color: const Color(0xFF182033),
+                          ),
+                          _AmountCol(
+                            label: 'To\'langan',
+                            value: _formatMoney(enrollment.paidAmount),
+                            color: const Color(0xFF16934F),
+                          ),
+                          _AmountCol(
+                            label: 'Qarz',
+                            value: _formatMoney(enrollment.debtAmount),
+                            color: const Color(0xFFDC2626),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 10),
+                      // To'lov jarayoni progress bar
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(999),
+                        child: SizedBox(
+                          height: 6,
+                          width: double.infinity,
+                          child: Stack(
+                            children: [
+                              Container(color: const Color(0xFFE5EAF2)),
+                              FractionallySizedBox(
+                                widthFactor: paidRatio,
+                                child: Container(
+                                  decoration: const BoxDecoration(
+                                    gradient: LinearGradient(
+                                      colors: [
+                                        Color(0xFF16934F),
+                                        Color(0xFF22C55E),
+                                      ],
+                                    ),
+                                    borderRadius: BorderRadius.all(
+                                      Radius.circular(999),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 10),
+                Wrap(
+                  spacing: 6,
+                  runSpacing: 6,
+                  children: [
+                    _MiniChip(
+                      icon: Icons.how_to_reg_rounded,
+                      label:
+                          'Davomat: ${enrollment.attendedLessons}/${enrollment.totalLessons} • ${enrollment.attendancePercentage.toStringAsFixed(0)}%',
+                    ),
+                    if (enrollment.lastPaymentDate.isNotEmpty)
+                      _MiniChip(
+                        icon: Icons.event_rounded,
+                        label: _formatDisplayDate(enrollment.lastPaymentDate),
+                      ),
+                    if (enrollment.discountAmount > 0)
+                      _MiniChip(
+                        icon: Icons.discount_rounded,
+                        label:
+                            'Chegirma: ${_formatMoney(enrollment.discountAmount)}',
+                        color: const Color(0xFF8B5CF6),
+                      ),
+                    _MiniChip(
+                      icon: Icons.circle,
+                      iconSize: 7,
+                      label: monthlyStatus,
+                      color: monthlyStatusColor,
                     ),
                   ],
                 ),
-              ),
-              const SizedBox(width: 8),
-              _StatusPill(label: paymentStatus, color: statusColor),
-            ],
+              ],
+            ),
           ),
-          const SizedBox(height: 12),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _TextRow(
-                label: 'Kerak',
-                value: _formatMoney(enrollment.requiredAmount),
-                valueColor: const Color(0xFF182033),
-              ),
-              const SizedBox(height: 8),
-              _TextRow(
-                label: 'To\'langan',
-                value: _formatMoney(enrollment.paidAmount),
-                valueColor: const Color(0xFF16934F),
-              ),
-              const SizedBox(height: 8),
-              _TextRow(
-                label: 'Qarz',
-                value: _formatMoney(enrollment.debtAmount),
-                valueColor: const Color(0xFFDC2626),
-              ),
-              const SizedBox(height: 8),
-              _TextRow(
-                label: 'Chegirma',
-                value: _formatMoney(enrollment.discountAmount),
-                valueColor: const Color(0xFF8B5CF6),
-              ),
-              const SizedBox(height: 8),
-              _TextRow(
-                label: 'Holat',
-                value: monthlyStatus,
-                valueColor: monthlyStatusColor,
-              ),
-            ],
+        ],
+      ),
+    );
+  }
+}
+
+/// Summalar blokidagi bitta ustun (Kerak / To'langan / Qarz)
+class _AmountCol extends StatelessWidget {
+  const _AmountCol({
+    required this.label,
+    required this.value,
+    required this.color,
+  });
+
+  final String label;
+  final String value;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Expanded(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            label,
+            style: const TextStyle(
+              fontSize: 10,
+              fontWeight: FontWeight.w700,
+              color: Color(0xFF7B8497),
+            ),
           ),
-          const SizedBox(height: 12),
-          Row(
-            children: [
-              Expanded(
-                child: _SmallInfo(
-                  label: 'Davomat',
-                  value:
-                      '${enrollment.attendedLessons}/${enrollment.totalLessons}',
-                ),
+          const SizedBox(height: 2),
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Text(
+              value,
+              maxLines: 1,
+              style: TextStyle(
+                fontSize: 12.5,
+                fontWeight: FontWeight.w900,
+                color: color,
               ),
-              Expanded(
-                child: _SmallInfo(
-                  label: 'Foiz',
-                  value:
-                      '${enrollment.attendancePercentage.toStringAsFixed(0)}%',
-                ),
-              ),
-              Expanded(
-                child: _SmallInfo(
-                  label: 'So\'nggi to\'lov',
-                  value: enrollment.lastPaymentDate.isEmpty
-                      ? '-'
-                      : _formatDisplayDate(enrollment.lastPaymentDate),
-                ),
-              ),
-            ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Icon + matnli kichik ma'lumot chipi
+class _MiniChip extends StatelessWidget {
+  const _MiniChip({
+    required this.icon,
+    required this.label,
+    this.color = const Color(0xFF5C6474),
+    this.iconSize = 12,
+  });
+
+  final IconData icon;
+  final String label;
+  final Color color;
+  final double iconSize;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: iconSize, color: color),
+          const SizedBox(width: 4),
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 10.5,
+              fontWeight: FontWeight.w800,
+              color: color,
+            ),
           ),
         ],
       ),
@@ -488,29 +789,33 @@ class _TransactionCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final dateLabel = transaction.paymentDate.isEmpty
+        ? ''
+        : _formatDisplayDate(transaction.paymentDate);
+
     return Container(
-      padding: const EdgeInsets.all(14),
+      padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: const Color(0xFFF8FAFC),
-        borderRadius: BorderRadius.circular(20),
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
         border: Border.all(color: const Color(0xFFE5EAF2)),
       ),
       child: Row(
         children: [
           Container(
-            width: 42,
-            height: 42,
+            width: 38,
+            height: 38,
             decoration: BoxDecoration(
-              color: AppTheme.brandColor.withValues(alpha: 0.10),
-              borderRadius: BorderRadius.circular(14),
+              color: const Color(0xFF16934F).withValues(alpha: 0.10),
+              borderRadius: BorderRadius.circular(12),
             ),
             child: const Icon(
-              Icons.payments_rounded,
-              color: AppTheme.brandColor,
-              size: 22,
+              Icons.check_circle_rounded,
+              color: Color(0xFF16934F),
+              size: 20,
             ),
           ),
-          const SizedBox(width: 12),
+          const SizedBox(width: 10),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -519,19 +824,26 @@ class _TransactionCard extends StatelessWidget {
                   transaction.groupName.isEmpty
                       ? 'To\'lov'
                       : transaction.groupName,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
-                    fontSize: 14.5,
+                    fontSize: 13.5,
                     fontWeight: FontWeight.w800,
                     color: Color(0xFF182033),
                   ),
                 ),
-                const SizedBox(height: 3),
+                const SizedBox(height: 2),
                 Text(
-                  transaction.paymentDate.isEmpty
-                      ? transaction.description
-                      : '${transaction.paymentDate} • ${transaction.description}',
+                  [
+                    if (dateLabel.isNotEmpty) dateLabel,
+                    if (transaction.description.trim().isNotEmpty)
+                      transaction.description,
+                  ].join(' • '),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
-                    fontSize: 12,
+                    fontSize: 11.5,
+                    fontWeight: FontWeight.w600,
                     color: Color(0xFF64748B),
                   ),
                 ),
@@ -540,10 +852,10 @@ class _TransactionCard extends StatelessWidget {
           ),
           const SizedBox(width: 8),
           Text(
-            _formatMoney(transaction.amount),
+            '+${_formatMoney(transaction.amount)}',
             style: const TextStyle(
-              fontSize: 14,
-              fontWeight: FontWeight.w800,
+              fontSize: 13,
+              fontWeight: FontWeight.w900,
               color: Color(0xFF16934F),
             ),
           ),
@@ -575,79 +887,6 @@ class _StatusPill extends StatelessWidget {
           color: color,
         ),
       ),
-    );
-  }
-}
-
-class _TextRow extends StatelessWidget {
-  const _TextRow({
-    required this.label,
-    required this.value,
-    required this.valueColor,
-  });
-
-  final String label;
-  final String value;
-  final Color valueColor;
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Text(
-          '$label:',
-          style: const TextStyle(
-            fontSize: 12,
-            fontWeight: FontWeight.w700,
-            color: Color(0xFF7B8497),
-          ),
-        ),
-        const SizedBox(width: 8),
-        Expanded(
-          child: Text(
-            value,
-            style: TextStyle(
-              fontSize: 13.5,
-              fontWeight: FontWeight.w800,
-              color: valueColor,
-            ),
-            textAlign: TextAlign.right,
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _SmallInfo extends StatelessWidget {
-  const _SmallInfo({required this.label, required this.value});
-
-  final String label;
-  final String value;
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          label,
-          style: const TextStyle(
-            fontSize: 10.5,
-            fontWeight: FontWeight.w700,
-            color: Color(0xFF7B8497),
-          ),
-        ),
-        const SizedBox(height: 4),
-        Text(
-          value,
-          style: const TextStyle(
-            fontSize: 12.5,
-            fontWeight: FontWeight.w700,
-            color: Color(0xFF182033),
-          ),
-        ),
-      ],
     );
   }
 }

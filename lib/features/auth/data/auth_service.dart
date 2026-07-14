@@ -142,6 +142,34 @@ class AuthService {
     }
   }
 
+  /// Student o'z akkauntini butunlay o'chiradi (parol bilan tasdiqlanadi).
+  /// Muvaffaqiyatli bo'lsa sessiya ham tozalanishi kerak — chaqiruvchi tomonda.
+  Future<void> deleteMyAccount({
+    required String accessToken,
+    required String password,
+  }) async {
+    final response = await http
+        .delete(
+          _uri('/api/students/me/account'),
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer $accessToken',
+          },
+          body: jsonEncode({'password': password}),
+        )
+        .timeout(_timeout);
+
+    final decoded = _decodeResponse(response);
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      throw AuthException(
+        decoded['message']?.toString() ??
+            decoded['error']?.toString() ??
+            'Akkaunt o\'chirilmadi',
+        statusCode: response.statusCode,
+      );
+    }
+  }
+
   Future<String> refreshAccessToken(String refreshToken) async {
     final response = await http
         .post(

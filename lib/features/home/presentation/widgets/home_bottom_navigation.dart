@@ -23,7 +23,11 @@ class HomeBottomNavigation extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
+    // SafeArea: Android'da tizimning pastki navigatsiya bari (3 tugmali yoki
+    // gesture bar) va iOS home-indicator bar ustiga chiqib qolmasligi kerak
+    return SafeArea(
+      top: false,
+      child: Container(
       margin: const EdgeInsets.fromLTRB(6, 0, 6, 10),
       padding: const EdgeInsets.all(4),
       decoration: BoxDecoration(
@@ -127,6 +131,7 @@ class HomeBottomNavigation extends StatelessWidget {
             ),
           );
         },
+      ),
       ),
     );
   }

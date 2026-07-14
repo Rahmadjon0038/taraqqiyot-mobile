@@ -23,6 +23,11 @@ class HomeProgressCard extends StatelessWidget {
       clipBehavior: Clip.antiAlias,
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(18),
+        gradient: const LinearGradient(
+          colors: [Color(0xFF134E4A), Color(0xFF0F766E), Color(0xFF2DD4BF)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
         boxShadow: const [
           BoxShadow(
             color: Color(0x26000000),
@@ -34,25 +39,37 @@ class HomeProgressCard extends StatelessWidget {
       child: Stack(
         clipBehavior: Clip.antiAlias,
         children: [
-          Positioned.fill(
-            child: Image.asset(
-              'assets/reyting.png',
-              fit: BoxFit.cover,
+          Positioned(
+            right: -20,
+            bottom: -24,
+            child: Transform.rotate(
+              angle: 0.18,
+              child: Icon(
+                Icons.emoji_events_rounded,
+                size: 124,
+                color: Colors.white.withValues(alpha: 0.14),
+              ),
             ),
           ),
-          Positioned.fill(
-            child: DecoratedBox(
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(18),
-                gradient: LinearGradient(
-                  colors: [
-                    const Color(0xFF111827).withValues(alpha: 0.52),
-                    const Color(0xFF0F766E).withValues(alpha: 0.62),
-                  ],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                ),
+          Positioned(
+            right: 84,
+            top: -12,
+            child: Transform.rotate(
+              angle: -0.3,
+              child: Icon(
+                Icons.star_rounded,
+                size: 58,
+                color: Colors.white.withValues(alpha: 0.10),
               ),
+            ),
+          ),
+          Positioned(
+            left: -10,
+            bottom: -6,
+            child: Icon(
+              Icons.leaderboard_rounded,
+              size: 52,
+              color: Colors.white.withValues(alpha: 0.08),
             ),
           ),
           Padding(
@@ -60,15 +77,32 @@ class HomeProgressCard extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text(
-                  'Reyting',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 11.5,
-                    fontWeight: FontWeight.w600,
-                  ),
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(6),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.16),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: const Icon(
+                        Icons.emoji_events_rounded,
+                        color: Colors.white,
+                        size: 16,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    const Text(
+                      'Reyting',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 11.5,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
                 ),
-                const SizedBox(height: 6),
+                const SizedBox(height: 10),
                 Text(
                   groupName,
                   style: const TextStyle(
@@ -91,15 +125,9 @@ class HomeProgressCard extends StatelessWidget {
                 const SizedBox(height: 14),
                 Row(
                   children: [
-                    _StatPill(
-                      label: 'Ball',
-                      value: '$points',
-                    ),
+                    _StatPill(label: 'Ball', value: '$points'),
                     const SizedBox(width: 8),
-                    _StatPill(
-                      label: 'O‘rin',
-                      value: rank > 0 ? '$rank' : '-',
-                    ),
+                    _StatPill(label: 'O‘rin', value: rank > 0 ? '$rank' : '-'),
                   ],
                 ),
               ],
@@ -125,10 +153,7 @@ class HomeProgressCard extends StatelessWidget {
 }
 
 class _StatPill extends StatelessWidget {
-  const _StatPill({
-    required this.label,
-    required this.value,
-  });
+  const _StatPill({required this.label, required this.value});
 
   final String label;
   final String value;

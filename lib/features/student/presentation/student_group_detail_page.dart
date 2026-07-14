@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../app/theme/app_theme.dart';
+import '../../../core/widgets/weekday_pills_row.dart';
 import '../../auth/models/auth_session.dart';
 import '../../profile/presentation/widgets/profile_avatar.dart';
 import '../data/student_groups_service.dart';
@@ -10,10 +11,17 @@ class StudentGroupDetailPage extends StatefulWidget {
     super.key,
     required this.session,
     required this.groupId,
+    this.initialScheduleDays = const [],
+    this.initialScheduleTime = '',
   });
 
   final AuthSession session;
   final int groupId;
+
+  /// Guruhlar ro'yxatidan uzatiladigan jadval — detail API'da schedule
+  /// bo'lmasa (eski backend) shu qiymatlar ko'rsatiladi
+  final List<String> initialScheduleDays;
+  final String initialScheduleTime;
 
   @override
   State<StudentGroupDetailPage> createState() => _StudentGroupDetailPageState();
@@ -154,8 +162,16 @@ class _StudentGroupDetailPageState extends State<StudentGroupDetailPage> {
                       _PodiumCard(topMates: topMates),
                       const SizedBox(height: 10),
                     ],
-                    _HeroCard(detail: detail),
-                    const SizedBox(height: 8),
+                    _HeroCard(
+                      detail: detail,
+                      scheduleDays: detail.scheduleDays.isNotEmpty
+                          ? detail.scheduleDays
+                          : widget.initialScheduleDays,
+                      scheduleTime: detail.scheduleTime.trim().isNotEmpty
+                          ? detail.scheduleTime
+                          : widget.initialScheduleTime,
+                    ),
+                    const SizedBox(height: 10),
                     _MembersCard(groupmates: detail.groupmates),
                   ],
                 ),
@@ -214,13 +230,23 @@ List<StudentGroupMate> _topThreeMates(List<StudentGroupMate> groupmates) {
   return sorted.take(3).toList();
 }
 
+/// Minimal guruh ma'lumoti kartasi: nom, o'qituvchi (telefon bilan)
+/// va dars kunlari/vaqti — boshqa hech narsa yo'q
 class _HeroCard extends StatelessWidget {
-  const _HeroCard({required this.detail});
+  const _HeroCard({
+    required this.detail,
+    required this.scheduleDays,
+    required this.scheduleTime,
+  });
 
   final StudentGroupDetails detail;
+  final List<String> scheduleDays;
+  final String scheduleTime;
 
   @override
   Widget build(BuildContext context) {
+    final time = scheduleTime.trim();
+
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       decoration: BoxDecoration(
@@ -246,38 +272,80 @@ class _HeroCard extends StatelessWidget {
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
-                    fontSize: 17,
+                    fontSize: 15.5,
                     fontWeight: FontWeight.w900,
                     color: Color(0xFF182033),
                   ),
                 ),
               ),
-              const SizedBox(width: 8),
-              _TinyPill(
-                label: detail.subjectName,
-                background: const Color(0xFFEAF0FF),
-                foreground: const Color(0xFF4C63D2),
-              ),
+              if (time.isNotEmpty) ...[
+                const SizedBox(width: 8),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 9,
+                    vertical: 4,
+                  ),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFEAF0FF),
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(
+                        Icons.schedule_rounded,
+                        size: 12,
+                        color: Color(0xFF2563EB),
+                      ),
+                      const SizedBox(width: 4),
+                      Text(
+                        time,
+                        style: const TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w800,
+                          color: Color(0xFF2563EB),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
             ],
           ),
           const SizedBox(height: 6),
-          Text(
-            'Teacher: ${detail.teacherName}',
-            style: const TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.w700,
-              color: Color(0xFF3A4454),
-            ),
+          // O'qituvchi va telefoni
+          Row(
+            children: [
+              const Icon(
+                Icons.person_rounded,
+                size: 14,
+                color: Color(0xFF7B8495),
+              ),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Text(
+                  detail.teacherPhone.isEmpty
+                      ? detail.teacherName
+                      : '${detail.teacherName} • ${detail.teacherPhone}',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 11.5,
+                    fontWeight: FontWeight.w700,
+                    color: Color(0xFF5A6478),
+                  ),
+                ),
+              ),
+            ],
           ),
-          const SizedBox(height: 2),
-          Text(
-            detail.teacherPhone.isEmpty ? '-' : detail.teacherPhone,
-            style: const TextStyle(
-              fontSize: 11,
-              fontWeight: FontWeight.w600,
-              color: Color(0xFF7B8495),
+          // Dars kunlari — faqat dars bor kunlar to'liq nomi bilan
+          if (scheduleDays.isNotEmpty) ...[
+            const SizedBox(height: 10),
+            ActiveScheduleDaysWrap(
+              scheduleDays: scheduleDays,
+              color: AppTheme.brandColor,
             ),
-          ),
+          ],
         ],
       ),
     );
@@ -348,11 +416,11 @@ class _MonthChipsRow extends StatelessWidget {
               padding: const EdgeInsets.symmetric(horizontal: 14),
               alignment: Alignment.center,
               decoration: BoxDecoration(
-                color: selected ? const Color(0xFF6D4DF6) : Colors.white,
+                color: selected ? AppTheme.brandColor : Colors.white,
                 borderRadius: BorderRadius.circular(999),
                 border: Border.all(
                   color: selected
-                      ? const Color(0xFF6D4DF6)
+                      ? AppTheme.brandColor
                       : const Color(0xFFDDE3EE),
                 ),
               ),
@@ -387,15 +455,15 @@ class _PodiumCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.fromLTRB(10, 16, 10, 14),
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(24),
+        borderRadius: BorderRadius.circular(20),
         gradient: const LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: [Color(0xFF7C4DD8), Color(0xFF5B34A6)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [Color(0xFF7C0A05), Color(0xFFA70E07), Color(0xFFD32F2F)],
         ),
         boxShadow: const [
           BoxShadow(
-            color: Color(0x335B34A6),
+            color: Color(0x337C0A05),
             blurRadius: 24,
             offset: Offset(0, 10),
           ),
@@ -555,15 +623,47 @@ class _MembersCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
-            'Guruhdoshlar',
-            style: TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.w900,
-              color: Color(0xFF182033),
-            ),
+          Row(
+            children: [
+              Container(
+                width: 30,
+                height: 30,
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(
+                    colors: [Color(0xFFD32F2F), Color(0xFF7C0A05)],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: const Icon(
+                  Icons.groups_rounded,
+                  size: 16,
+                  color: Colors.white,
+                ),
+              ),
+              const SizedBox(width: 8),
+              const Expanded(
+                child: Text(
+                  'Guruhdoshlar',
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w900,
+                    color: Color(0xFF182033),
+                  ),
+                ),
+              ),
+              Text(
+                '${groupmates.length} ta',
+                style: const TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w800,
+                  color: Color(0xFF8A93A5),
+                ),
+              ),
+            ],
           ),
-          const SizedBox(height: 6),
+          const SizedBox(height: 8),
           for (final mate in groupmates) ...[
             _MateRow(mate: mate),
             if (mate != groupmates.last)
@@ -580,8 +680,18 @@ class _MateRow extends StatelessWidget {
 
   final StudentGroupMate mate;
 
+  /// Top-3 o'rin uchun medal ranglari: oltin, kumush, bronza
+  static const Map<int, Color> _rankColors = {
+    1: Color(0xFFD4A017),
+    2: Color(0xFF8E9AAB),
+    3: Color(0xFFB4691E),
+  };
+
   @override
   Widget build(BuildContext context) {
+    final hasRank = mate.rankInGroup > 0;
+    final rankColor = _rankColors[mate.rankInGroup] ?? const Color(0xFF4C63D2);
+
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 5),
       child: Row(
@@ -611,10 +721,41 @@ class _MateRow extends StatelessWidget {
                         ),
                       ),
                     ),
-                    _TinyPill(
-                      label: '${mate.rankInGroup > 0 ? mate.rankInGroup : '-'}',
-                      background: const Color(0xFFEAF0FF),
-                      foreground: const Color(0xFF4C63D2),
+                    // O'rin pilli — top-3 medal rangida
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 4,
+                      ),
+                      decoration: BoxDecoration(
+                        color: hasRank
+                            ? rankColor.withValues(alpha: 0.12)
+                            : const Color(0xFFF1F4F9),
+                        borderRadius: BorderRadius.circular(999),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          if (_rankColors.containsKey(mate.rankInGroup)) ...[
+                            Icon(
+                              Icons.emoji_events_rounded,
+                              size: 11,
+                              color: rankColor,
+                            ),
+                            const SizedBox(width: 3),
+                          ],
+                          Text(
+                            hasRank ? '${mate.rankInGroup}-o\'rin' : '—',
+                            style: TextStyle(
+                              fontSize: 10.5,
+                              fontWeight: FontWeight.w800,
+                              color: hasRank
+                                  ? rankColor
+                                  : const Color(0xFF8A93A5),
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                   ],
                 ),
@@ -626,7 +767,7 @@ class _MateRow extends StatelessWidget {
                       style: const TextStyle(
                         fontSize: 10,
                         fontWeight: FontWeight.w700,
-                        color: Color(0xFF6D4DF6),
+                        color: Color(0xFFA70E07),
                       ),
                     ),
                     const SizedBox(width: 10),
@@ -644,37 +785,6 @@ class _MateRow extends StatelessWidget {
             ),
           ),
         ],
-      ),
-    );
-  }
-}
-
-class _TinyPill extends StatelessWidget {
-  const _TinyPill({
-    required this.label,
-    required this.background,
-    required this.foreground,
-  });
-
-  final String label;
-  final Color background;
-  final Color foreground;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      decoration: BoxDecoration(
-        color: background,
-        borderRadius: BorderRadius.circular(999),
-      ),
-      child: Text(
-        label,
-        style: TextStyle(
-          fontSize: 11,
-          fontWeight: FontWeight.w700,
-          color: foreground,
-        ),
       ),
     );
   }

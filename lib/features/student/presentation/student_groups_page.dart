@@ -1,15 +1,13 @@
 import 'package:flutter/material.dart';
 
 import '../../../app/theme/app_theme.dart';
+import '../../../core/widgets/weekday_pills_row.dart';
 import '../../auth/models/auth_session.dart';
 import '../data/student_groups_service.dart';
 import 'student_group_detail_page.dart';
 
 class StudentGroupsPage extends StatefulWidget {
-  const StudentGroupsPage({
-    super.key,
-    required this.session,
-  });
+  const StudentGroupsPage({super.key, required this.session});
 
   final AuthSession session;
 
@@ -59,10 +57,7 @@ class _StudentGroupsPageState extends State<StudentGroupsPage> {
               if (isLoading)
                 const _GroupsLoadingSkeleton()
               else if (error != null)
-                _ErrorState(
-                  message: _readErrorMessage(error),
-                  onRetry: _reload,
-                )
+                _ErrorState(message: _readErrorMessage(error), onRetry: _reload)
               else if (groups.isEmpty)
                 const _EmptyState()
               else
@@ -75,6 +70,8 @@ class _StudentGroupsPageState extends State<StudentGroupsPage> {
                           builder: (_) => StudentGroupDetailPage(
                             session: widget.session,
                             groupId: group.groupId,
+                            initialScheduleDays: group.scheduleDays,
+                            initialScheduleTime: group.scheduleTime,
                           ),
                         ),
                       );
@@ -98,10 +95,7 @@ class _StudentGroupsPageState extends State<StudentGroupsPage> {
 }
 
 class _StudentGroupCard extends StatelessWidget {
-  const _StudentGroupCard({
-    required this.group,
-    required this.onTap,
-  });
+  const _StudentGroupCard({required this.group, required this.onTap});
 
   final StudentGroupSummary group;
   final VoidCallback onTap;
@@ -109,13 +103,12 @@ class _StudentGroupCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: Colors.white,
-      borderRadius: BorderRadius.circular(20),
+      color: Colors.transparent,
       child: InkWell(
         onTap: onTap,
         borderRadius: BorderRadius.circular(20),
         child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          clipBehavior: Clip.antiAlias,
           decoration: BoxDecoration(
             color: Colors.white,
             borderRadius: BorderRadius.circular(20),
@@ -128,89 +121,193 @@ class _StudentGroupCard extends StatelessWidget {
               ),
             ],
           ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+          child: Stack(
             children: [
-              Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      group.groupName,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        fontSize: 17,
-                        fontWeight: FontWeight.w900,
-                        color: Color(0xFF182033),
-                      ),
-                    ),
+              // Bezak — orqa fonda katta shaffof kitob iconi
+              Positioned(
+                right: -18,
+                bottom: -20,
+                child: Transform.rotate(
+                  angle: -0.18,
+                  child: Icon(
+                    Icons.menu_book_rounded,
+                    size: 96,
+                    color: AppTheme.brandColor.withValues(alpha: 0.05),
                   ),
-                  const SizedBox(width: 8),
-                  _MiniPill(
-                    label: group.subjectName,
-                    background: const Color(0xFFFBEAE9),
-                    foreground: AppTheme.brandColor,
-                  ),
-                ],
-              ),
-              const SizedBox(height: 6),
-              Text(
-                'Ustoz: ${group.teacherName}',
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w700,
-                  color: Color(0xFF3A4454),
                 ),
               ),
-              const SizedBox(height: 10),
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  // Wrap — chiplar sig'masa ellipsis o'rniga pastki qatorga tushadi
-                  Expanded(
-                    child: Wrap(
-                      spacing: 8,
-                      runSpacing: 6,
+              Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 12,
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
+                        Container(
+                          width: 42,
+                          height: 42,
+                          decoration: BoxDecoration(
+                            gradient: const LinearGradient(
+                              colors: [Color(0xFFD32F2F), Color(0xFF7C0A05)],
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                            ),
+                            borderRadius: BorderRadius.circular(13),
+                          ),
+                          child: const Icon(
+                            Icons.school_rounded,
+                            size: 21,
+                            color: Colors.white,
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                group.groupName,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w900,
+                                  color: Color(0xFF182033),
+                                ),
+                              ),
+                              const SizedBox(height: 2),
+                              Row(
+                                children: [
+                                  const Icon(
+                                    Icons.person_rounded,
+                                    size: 13,
+                                    color: Color(0xFF8A93A5),
+                                  ),
+                                  const SizedBox(width: 3),
+                                  Expanded(
+                                    child: Text(
+                                      group.teacherName,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: const TextStyle(
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.w700,
+                                        color: Color(0xFF5A6478),
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(width: 8),
                         _MiniPill(
-                          label: 'Ball: ${group.monthlyPoints}',
+                          label: group.subjectName,
                           background: const Color(0xFFFBEAE9),
                           foreground: AppTheme.brandColor,
                         ),
-                        _MiniPill(
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    // Wrap — chiplar sig'masa pastki qatorga tushadi
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 6,
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      children: [
+                        _StatChip(
+                          icon: Icons.star_rounded,
+                          label: '${group.monthlyPoints} ball',
+                          background: const Color(0xFFFBEAE9),
+                          foreground: AppTheme.brandColor,
+                        ),
+                        _StatChip(
+                          icon: Icons.emoji_events_rounded,
                           label: group.monthlyRank > 0
-                              ? 'Guruhdagi o‘rningiz: ${group.monthlyRank}'
-                              : 'Guruhdagi o‘rningiz: -',
+                              ? '${group.monthlyRank}-o‘rin'
+                              : 'O‘rin: -',
                           background: const Color(0xFFF4F6FA),
                           foreground: const Color(0xFF5C6474),
                         ),
+                        if (group.scheduleTime.trim().isNotEmpty)
+                          _StatChip(
+                            icon: Icons.schedule_rounded,
+                            label: group.scheduleTime.trim(),
+                            background: const Color(0xFFEAF0FF),
+                            foreground: const Color(0xFF2563EB),
+                          ),
+                        _StatChip(
+                          icon: Icons.calendar_today_rounded,
+                          label: _formatDate(group.createdDate),
+                          background: const Color(0xFFF4F6FA),
+                          foreground: const Color(0xFF7B8495),
+                        ),
                       ],
                     ),
-                  ),
-                  const SizedBox(width: 8),
-                  const Icon(
-                    Icons.calendar_today_rounded,
-                    size: 12,
-                    color: Color(0xFF8A93A5),
-                  ),
-                  const SizedBox(width: 4),
-                  Text(
-                    _formatDate(group.createdDate),
-                    style: const TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w600,
-                      color: Color(0xFF7B8495),
-                    ),
-                  ),
-                ],
+                    // Dars kunlari — faqat dars bor kunlar to'liq nomi bilan
+                    if (group.scheduleDays.isNotEmpty) ...[
+                      const SizedBox(height: 10),
+                      ActiveScheduleDaysWrap(
+                        scheduleDays: group.scheduleDays,
+                        color: AppTheme.brandColor,
+                      ),
+                    ],
+                    const SizedBox(height: 12),
+                    _MasteryProgressBar(percent: group.masteryPercent),
+                  ],
+                ),
               ),
-              const SizedBox(height: 10),
-              _MasteryProgressBar(percent: group.masteryPercent),
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+/// Icon + matnli kichik stat chip
+class _StatChip extends StatelessWidget {
+  const _StatChip({
+    required this.icon,
+    required this.label,
+    required this.background,
+    required this.foreground,
+  });
+
+  final IconData icon;
+  final String label;
+  final Color background;
+  final Color foreground;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
+      decoration: BoxDecoration(
+        color: background,
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 12, color: foreground),
+          const SizedBox(width: 4),
+          Text(
+            label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              fontSize: 10.5,
+              fontWeight: FontWeight.w800,
+              color: foreground,
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -234,65 +331,58 @@ class _MasteryProgressBar extends StatelessWidget {
         color: const Color(0xFFF8F4F4),
         borderRadius: BorderRadius.circular(14),
       ),
-      child: Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Container(
-            width: 34,
-            height: 34,
-            decoration: const BoxDecoration(
-              color: Color(0xFFFBEAE9),
-              shape: BoxShape.circle,
-            ),
-            child: const Icon(
-              Icons.bar_chart_rounded,
-              size: 18,
-              color: AppTheme.brandColor,
-            ),
-          ),
-          const SizedBox(width: 10),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+          Row(
             children: [
-              const Text(
-                'O\'zlashtirish',
-                style: TextStyle(
-                  fontSize: 10,
-                  fontWeight: FontWeight.w700,
-                  color: Color(0xFF7B8495),
+              const Icon(
+                Icons.insights_rounded,
+                size: 14,
+                color: AppTheme.brandColor,
+              ),
+              const SizedBox(width: 6),
+              const Expanded(
+                child: Text(
+                  'O\'zlashtirish',
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                    color: Color(0xFF7B8495),
+                  ),
                 ),
               ),
-              const SizedBox(height: 1),
               Text(
                 label,
                 style: const TextStyle(
-                  fontSize: 15,
+                  fontSize: 14,
                   fontWeight: FontWeight.w900,
                   color: AppTheme.brandColor,
                 ),
               ),
             ],
           ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(999),
-              child: SizedBox(
-                height: 8,
-                child: Stack(
-                  children: [
-                    Container(color: const Color(0xFFE9E2E1)),
-                    FractionallySizedBox(
-                      widthFactor: clamped / 100,
-                      child: Container(
-                        decoration: const BoxDecoration(
-                          gradient: LinearGradient(
-                            colors: [Color(0xFFA70E07), Color(0xFF7C0A05)],
-                          ),
+          const SizedBox(height: 8),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(999),
+            child: SizedBox(
+              height: 7,
+              width: double.infinity,
+              child: Stack(
+                children: [
+                  Container(color: const Color(0xFFE9E2E1)),
+                  FractionallySizedBox(
+                    widthFactor: clamped / 100,
+                    child: Container(
+                      decoration: const BoxDecoration(
+                        gradient: LinearGradient(
+                          colors: [Color(0xFFD32F2F), Color(0xFF7C0A05)],
                         ),
+                        borderRadius: BorderRadius.all(Radius.circular(999)),
                       ),
                     ),
-                  ],
-                ),
+                  ),
+                ],
               ),
             ),
           ),
@@ -437,10 +527,7 @@ class _SkeletonBox extends StatelessWidget {
 }
 
 class _ErrorState extends StatelessWidget {
-  const _ErrorState({
-    required this.message,
-    required this.onRetry,
-  });
+  const _ErrorState({required this.message, required this.onRetry});
 
   final String message;
   final VoidCallback onRetry;
@@ -456,7 +543,11 @@ class _ErrorState extends StatelessWidget {
       ),
       child: Column(
         children: [
-          const Icon(Icons.error_outline_rounded, color: Color(0xFFA70E07), size: 40),
+          const Icon(
+            Icons.error_outline_rounded,
+            color: Color(0xFFA70E07),
+            size: 40,
+          ),
           const SizedBox(height: 10),
           Text(
             message,
