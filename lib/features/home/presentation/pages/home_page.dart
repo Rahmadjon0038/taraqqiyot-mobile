@@ -11,6 +11,7 @@ import '../../../student/presentation/student_attendance_page.dart';
 import '../../../student/presentation/student_groups_page.dart';
 import '../../../student/presentation/student_group_detail_page.dart';
 import '../../../student/presentation/student_point_reports_page.dart';
+import '../../../student/presentation/student_points_overview_page.dart';
 import '../../../student/presentation/student_payments_page.dart';
 import '../../../student/data/student_groups_service.dart';
 import '../../../student/data/student_payments_service.dart';
@@ -182,6 +183,9 @@ class _TopHeader extends StatelessWidget {
               ),
             ),
             const SizedBox(width: 6),
+            // Joriy oyda to'plangan ball — bosilsa Ballarim sahifasi ochiladi
+            _MonthlyPointsChip(session: session),
+            const SizedBox(width: 6),
             ValueListenableBuilder<int>(
               valueListenable: NotificationService.instance.unreadCount,
               builder: (context, unreadCount, _) {
@@ -198,6 +202,156 @@ class _TopHeader extends StatelessWidget {
                 );
               },
             ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Header'dagi joriy oy ball chipi (notification ikonasining chap tarafida).
+/// Joriy oyda barcha guruhlar bo'yicha to'plangan umumiy ballni ko'rsatadi,
+/// bosilganda "Ballarim" sahifasiga o'tadi va qaytishda qiymatni yangilaydi.
+class _MonthlyPointsChip extends StatefulWidget {
+  const _MonthlyPointsChip({required this.session});
+
+  final AuthSession session;
+
+  @override
+  State<_MonthlyPointsChip> createState() => _MonthlyPointsChipState();
+}
+
+class _MonthlyPointsChipState extends State<_MonthlyPointsChip> {
+  final StudentGroupsService _service = StudentGroupsService();
+  int? _points;
+  bool _hasError = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  @override
+  void dispose() {
+    _service.dispose();
+    super.dispose();
+  }
+
+  Future<void> _load() async {
+    final now = DateTime.now();
+    final month = '${now.year}-${now.month.toString().padLeft(2, '0')}';
+    try {
+      final report = await _service.fetchMyPointReports(
+        widget.session,
+        month: month,
+      );
+      if (!mounted) return;
+      setState(() {
+        _points = report.summary.totalPoints;
+        _hasError = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _hasError = true;
+      });
+    }
+  }
+
+  Future<void> _openOverview() async {
+    await Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => StudentPointsOverviewPage(session: widget.session),
+      ),
+    );
+    // Sahifadan qaytgach ball o'zgargan bo'lishi mumkin — yangilaymiz
+    if (mounted) _load();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    // Xatolik bo'lsa header'ni bezovta qilmaslik uchun chip yashiriladi
+    if (_hasError) return const SizedBox.shrink();
+
+    // Gradientli qizil pill + 3D oltin yulduz + oq ball raqami
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: _openOverview,
+      child: Container(
+        height: 31,
+        padding: const EdgeInsets.fromLTRB(5, 0, 10, 0),
+        decoration: BoxDecoration(
+          gradient: const LinearGradient(
+            colors: [Color(0xFFEF4A44), Color(0xFFC1161C), Color(0xFF8A0B06)],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+          borderRadius: BorderRadius.circular(999),
+          border: Border.all(
+            color: Colors.white.withValues(alpha: 0.30),
+            width: 1.1,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: AppTheme.brandColor.withValues(alpha: 0.34),
+              blurRadius: 9,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Yaltiroq oltin yulduz (gradient bilan)
+            ShaderMask(
+              shaderCallback: (bounds) => const LinearGradient(
+                colors: [Color(0xFFFFE99A), Color(0xFFFFC23C), Color(0xFFF59E0B)],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ).createShader(bounds),
+              child: const Icon(
+                Icons.star_rounded,
+                size: 19,
+                color: Colors.white,
+              ),
+            ),
+            const SizedBox(width: 4),
+            if (_points == null)
+              const SizedBox(
+                width: 12,
+                height: 12,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  color: Colors.white,
+                ),
+              )
+            else
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.baseline,
+                textBaseline: TextBaseline.alphabetic,
+                children: [
+                  Text(
+                    '$_points',
+                    style: const TextStyle(
+                      fontSize: 14.5,
+                      fontWeight: FontWeight.w900,
+                      color: Colors.white,
+                      height: 1,
+                    ),
+                  ),
+                  const SizedBox(width: 3),
+                  Text(
+                    'ball',
+                    style: TextStyle(
+                      fontSize: 9.5,
+                      fontWeight: FontWeight.w700,
+                      color: Colors.white.withValues(alpha: 0.82),
+                    ),
+                  ),
+                ],
+              ),
           ],
         ),
       ),

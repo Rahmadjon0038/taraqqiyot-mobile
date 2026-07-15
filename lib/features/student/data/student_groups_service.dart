@@ -475,6 +475,8 @@ class StudentPointReportsData {
     required this.month,
     required this.summary,
     required this.breakdown,
+    required this.monthlyBreakdown,
+    required this.teacherBreakdown,
     required this.dailyBreakdown,
     required this.events,
   });
@@ -482,12 +484,21 @@ class StudentPointReportsData {
   final String month;
   final StudentPointSummary summary;
   final List<StudentPointBreakdown> breakdown;
+
+  /// Oyma-oy jami ball (month='all' so'rovida to'ladi)
+  final List<StudentPointMonthlyBreakdown> monthlyBreakdown;
+
+  /// Qaysi teacher qaysi oyda qancha ball qo'ygan (month='all' da to'ladi)
+  final List<StudentPointTeacherBreakdown> teacherBreakdown;
+
   final List<StudentPointDailyBreakdown> dailyBreakdown;
   final List<StudentPointEvent> events;
 
   factory StudentPointReportsData.fromJson(Map<String, dynamic> json) {
     final summary = Map<String, dynamic>.from(json['summary'] as Map? ?? const {});
     final breakdownRaw = json['breakdown'];
+    final monthlyBreakdownRaw = json['monthly_breakdown'];
+    final teacherBreakdownRaw = json['teacher_breakdown'];
     final dailyBreakdownRaw = json['daily_breakdown'];
     final eventsRaw = json['events'];
 
@@ -500,6 +511,18 @@ class StudentPointReportsData {
               .map((item) => StudentPointBreakdown.fromJson(Map<String, dynamic>.from(item)))
               .toList()
           : const <StudentPointBreakdown>[],
+      monthlyBreakdown: monthlyBreakdownRaw is List
+          ? monthlyBreakdownRaw
+              .whereType<Map>()
+              .map((item) => StudentPointMonthlyBreakdown.fromJson(Map<String, dynamic>.from(item)))
+              .toList()
+          : const <StudentPointMonthlyBreakdown>[],
+      teacherBreakdown: teacherBreakdownRaw is List
+          ? teacherBreakdownRaw
+              .whereType<Map>()
+              .map((item) => StudentPointTeacherBreakdown.fromJson(Map<String, dynamic>.from(item)))
+              .toList()
+          : const <StudentPointTeacherBreakdown>[],
       dailyBreakdown: dailyBreakdownRaw is List
           ? dailyBreakdownRaw
               .whereType<Map>()
@@ -516,12 +539,64 @@ class StudentPointReportsData {
   }
 }
 
+/// Oyma-oy jami ball — "oylar bo'yicha ballari" ko'rinishi uchun
+class StudentPointMonthlyBreakdown {
+  const StudentPointMonthlyBreakdown({
+    required this.monthName,
+    required this.totalPoints,
+    required this.totalEvents,
+  });
+
+  /// YYYY-MM formatida
+  final String monthName;
+  final int totalPoints;
+  final int totalEvents;
+
+  factory StudentPointMonthlyBreakdown.fromJson(Map<String, dynamic> json) {
+    return StudentPointMonthlyBreakdown(
+      monthName: _asString(json['month_name']),
+      totalPoints: _asInt(json['total_points']),
+      totalEvents: _asInt(json['total_events']),
+    );
+  }
+}
+
+/// Har bir oyda qaysi teacher qancha ball qo'ygan
+class StudentPointTeacherBreakdown {
+  const StudentPointTeacherBreakdown({
+    required this.monthName,
+    required this.teacherId,
+    required this.teacherName,
+    required this.totalPoints,
+    required this.totalEvents,
+  });
+
+  /// YYYY-MM formatida
+  final String monthName;
+  final int? teacherId;
+  final String teacherName;
+  final int totalPoints;
+  final int totalEvents;
+
+  factory StudentPointTeacherBreakdown.fromJson(Map<String, dynamic> json) {
+    return StudentPointTeacherBreakdown(
+      monthName: _asString(json['month_name']),
+      teacherId: json['teacher_id'] == null ? null : _asInt(json['teacher_id']),
+      teacherName: _asString(json['teacher_name']),
+      totalPoints: _asInt(json['total_points']),
+      totalEvents: _asInt(json['total_events']),
+    );
+  }
+}
+
 class StudentPointSummary {
   const StudentPointSummary({
     required this.totalPoints,
     required this.totalEvents,
     required this.attendanceEvents,
     required this.manualEvents,
+    this.firstEventDate,
+    this.lastEventDate,
   });
 
   final int totalPoints;
@@ -529,12 +604,25 @@ class StudentPointSummary {
   final int attendanceEvents;
   final int manualEvents;
 
+  /// Birinchi ball olingan sana (YYYY-MM-DD), bo'lmasa null
+  final String? firstEventDate;
+
+  /// Oxirgi ball olingan sana (YYYY-MM-DD), bo'lmasa null
+  final String? lastEventDate;
+
   factory StudentPointSummary.fromJson(Map<String, dynamic> json) {
+    String? date(Object? value) {
+      final text = value?.toString().trim() ?? '';
+      return text.isEmpty || text == 'null' ? null : text;
+    }
+
     return StudentPointSummary(
       totalPoints: _asInt(json['total_points']),
       totalEvents: _asInt(json['total_events']),
       attendanceEvents: _asInt(json['attendance_events']),
       manualEvents: _asInt(json['manual_events']),
+      firstEventDate: date(json['first_event_date']),
+      lastEventDate: date(json['last_event_date']),
     );
   }
 }

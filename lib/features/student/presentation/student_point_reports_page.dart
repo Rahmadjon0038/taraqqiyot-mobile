@@ -9,10 +9,14 @@ class StudentPointReportsPage extends StatefulWidget {
     super.key,
     required this.session,
     this.initialGroupId,
+    this.initialMonth,
   });
 
   final AuthSession session;
   final int? initialGroupId;
+
+  /// Ochilganda tanlanadigan oy (YYYY-MM). Bo'lmasa joriy oy.
+  final String? initialMonth;
 
   @override
   State<StudentPointReportsPage> createState() => _StudentPointReportsPageState();
@@ -28,7 +32,11 @@ class _StudentPointReportsPageState extends State<StudentPointReportsPage> {
   @override
   void initState() {
     super.initState();
-    _selectedMonth = _currentMonthKey();
+    final initialMonth = widget.initialMonth?.trim();
+    _selectedMonth =
+        (initialMonth != null && RegExp(r'^\d{4}-\d{2}$').hasMatch(initialMonth))
+        ? initialMonth
+        : _currentMonthKey();
     _groupsFuture = _service.fetchMyGroups(widget.session);
     _loadInitialSelection();
   }
