@@ -65,10 +65,10 @@ class DefaultFirebaseOptions {
   );
   static const FirebaseOptions ios = FirebaseOptions(
     apiKey: 'AIzaSyC2phEGC9WUi_rHqGV4a7-7ObJpyERBs9A',
-    appId: '1:706164682164:ios:4da7e371b80baf55a7d6e1',
+    appId: '1:706164682164:ios:fb92b005d4188f04a7d6e1',
     messagingSenderId: '706164682164',
     projectId: 'taraqqiyot-teaching-center',
     storageBucket: 'taraqqiyot-teaching-center.firebasestorage.app',
-    iosBundleId: 'com.example.taraqqiyotMobile',
+    iosBundleId: 'uz.taraqqiyot.mobile',
   );
 }
