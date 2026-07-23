@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../../../../app/theme/app_theme.dart';
+import '../../../../core/localization/app_language.dart';
 import '../../../auth/models/auth_session.dart';
 import '../../../auth/models/auth_user.dart';
 import '../../../profile/presentation/avatar_picker_modal.dart';
@@ -45,16 +46,9 @@ class HomePage extends StatefulWidget {
 class _HomePageState extends State<HomePage> {
   int _currentIndex = 0;
 
-  static const _sectionTitles = [
-    'Asosiy',
-    'Mening guruhlarim',
-    'Davomat',
-    "To'lovlarim",
-    'Sozlamalar',
-  ];
-
   @override
   Widget build(BuildContext context) {
+    final strings = AppText.of(context);
     final user = widget.session.user;
     final displayName = user.fullName.isEmpty ? user.username : user.fullName;
     final firstName = displayName.split(' ').first;
@@ -104,7 +98,7 @@ class _HomePageState extends State<HomePage> {
               ),
               _ => _SectionPlaceholderPage(
                 key: ValueKey('section-$_currentIndex'),
-                title: _sectionTitles[_currentIndex],
+                title: strings.studentTabTitles[_currentIndex],
               ),
             },
           ),
@@ -306,7 +300,11 @@ class _MonthlyPointsChipState extends State<_MonthlyPointsChip> {
             // Yaltiroq oltin yulduz (gradient bilan)
             ShaderMask(
               shaderCallback: (bounds) => const LinearGradient(
-                colors: [Color(0xFFFFE99A), Color(0xFFFFC23C), Color(0xFFF59E0B)],
+                colors: [
+                  Color(0xFFFFE99A),
+                  Color(0xFFFFC23C),
+                  Color(0xFFF59E0B),
+                ],
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
               ).createShader(bounds),

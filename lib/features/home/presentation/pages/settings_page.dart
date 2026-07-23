@@ -2,6 +2,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 
 import '../../../../app/theme/app_theme.dart';
+import '../../../../core/localization/app_language.dart';
 import '../../../../core/services/notification_service.dart';
 import '../../../auth/data/auth_service.dart';
 import '../../../auth/models/auth_session.dart';
@@ -27,6 +28,7 @@ class SettingsPage extends StatelessWidget {
     final name = user.fullName.isEmpty ? user.username : user.fullName;
     final role = user.role.isEmpty ? 'user' : user.role;
     final normalizedRole = role.toLowerCase();
+    final strings = AppText.of(context);
     final avatarKey = user.avatarKey;
 
     return ListView(
@@ -104,19 +106,19 @@ class SettingsPage extends StatelessWidget {
           children: [
             _SettingsTile(
               icon: Icons.badge_outlined,
-              title: 'Profil ma\'lumotlari',
+              title: strings.profileInformation,
               onTap: () =>
                   _openProfileEditor(context, session, onSessionUpdated),
             ),
             _SettingsTile(
               icon: Icons.account_circle_outlined,
-              title: 'Profil avatari',
+              title: strings.profileAvatar,
               onTap: () =>
                   _openAvatarPicker(context, session, onSessionUpdated),
             ),
             _SettingsTile(
               icon: Icons.lock_outline_rounded,
-              title: 'Parolni almashtirish',
+              title: strings.changePassword,
               onTap: () => _openPasswordChange(context, session),
             ),
           ],
@@ -127,12 +129,12 @@ class SettingsPage extends StatelessWidget {
             children: [
               _SettingsTile(
                 icon: Icons.file_upload_outlined,
-                title: 'Avatarlarni yuklash',
+                title: strings.uploadAvatars,
                 onTap: () => _openAvatarUploader(context, session),
               ),
               _SettingsTile(
                 icon: Icons.collections_outlined,
-                title: 'Avatarlar ro‘yxati',
+                title: strings.avatarList,
                 onTap: () =>
                     _openAvatarPicker(context, session, onSessionUpdated),
               ),
@@ -146,7 +148,7 @@ class SettingsPage extends StatelessWidget {
               valueListenable: NotificationService.instance.pushEnabled,
               builder: (context, enabled, _) => _SwitchTile(
                 icon: Icons.notifications_active_outlined,
-                title: 'Push notification',
+                title: strings.pushNotifications,
                 value: enabled,
                 onChanged: (value) =>
                     NotificationService.instance.setPushEnabled(value),
@@ -154,24 +156,24 @@ class SettingsPage extends StatelessWidget {
             ),
           ],
         ),
-        const SizedBox(height: 14),
-        _SettingsSection(
-          children: [
-            _SettingsTile(
-              icon: Icons.info_outline_rounded,
-              title: 'Ilova haqida',
-              onTap: () {},
-            ),
-          ],
-        ),
-        // Akkauntni butunlay o'chirish — faqat studentlar uchun
         if (normalizedRole == 'student') ...[
           const SizedBox(height: 14),
           _SettingsSection(
             children: [
               _SettingsTile(
+                icon: Icons.info_outline_rounded,
+                title: strings.aboutApp,
+                onTap: () => _openAbout(context),
+              ),
+              _SettingsTile(
+                icon: Icons.language_rounded,
+                title: strings.language,
+                subtitle: strings.currentLanguageName,
+                onTap: () => _openLanguagePicker(context),
+              ),
+              _SettingsTile(
                 icon: Icons.delete_forever_outlined,
-                title: 'Akkauntni o\'chirish',
+                title: strings.deleteAccount,
                 onTap: () => _openDeleteAccount(context, session, onLogout),
               ),
             ],
@@ -183,7 +185,7 @@ class SettingsPage extends StatelessWidget {
           child: ElevatedButton.icon(
             onPressed: onLogout,
             icon: const Icon(Icons.logout_rounded, size: 20),
-            label: const Text('Chiqish'),
+            label: Text(strings.logout),
             style: ElevatedButton.styleFrom(
               backgroundColor: AppTheme.brandColor,
               foregroundColor: Colors.white,
@@ -265,7 +267,7 @@ class SettingsPage extends StatelessWidget {
 
     if (changed == true && context.mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Parol muvaffaqiyatli yangilandi')),
+        SnackBar(content: Text(AppText.of(context).passwordChangeSuccess)),
       );
     }
   }
@@ -285,10 +287,122 @@ class SettingsPage extends StatelessWidget {
 
     if (deleted == true && context.mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Akkaunt o\'chirildi')),
+        SnackBar(content: Text(AppText.of(context).deleteAccountSuccess)),
       );
       await onLogout();
     }
+  }
+
+  static Future<void> _openLanguagePicker(BuildContext context) async {
+    final controller = AppLanguageScope.of(context);
+    final strings = AppText.of(context);
+    final current = controller.value;
+
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (sheetContext) => _CompactModalSheet(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      strings.chooseLanguage,
+                      style: const TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w800,
+                        color: Color(0xFF182033),
+                      ),
+                    ),
+                  ),
+                  IconButton(
+                    onPressed: () => Navigator.of(sheetContext).pop(),
+                    icon: const Icon(Icons.close_rounded),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 6),
+              _LanguageOption(
+                title: strings.uzbek,
+                selected: current == 'uz',
+                onTap: () async {
+                  await controller.setLanguageCode('uz');
+                  if (sheetContext.mounted) {
+                    Navigator.of(sheetContext).pop();
+                  }
+                },
+              ),
+              const SizedBox(height: 10),
+              _LanguageOption(
+                title: strings.english,
+                selected: current == 'en',
+                onTap: () async {
+                  await controller.setLanguageCode('en');
+                  if (sheetContext.mounted) {
+                    Navigator.of(sheetContext).pop();
+                  }
+                },
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  static Future<void> _openAbout(BuildContext context) async {
+    final strings = AppText.of(context);
+
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (sheetContext) => _CompactModalSheet(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      strings.aboutStudentTitle,
+                      style: const TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w800,
+                        color: Color(0xFF182033),
+                      ),
+                    ),
+                  ),
+                  IconButton(
+                    onPressed: () => Navigator.of(sheetContext).pop(),
+                    icon: const Icon(Icons.close_rounded),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Text(
+                strings.aboutStudentDescription,
+                style: const TextStyle(
+                  fontSize: 13.5,
+                  height: 1.55,
+                  fontWeight: FontWeight.w600,
+                  color: Color(0xFF5B6577),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 
   static Future<void> _openAvatarUploader(
@@ -517,19 +631,18 @@ class _PasswordChangeSheetState extends State<_PasswordChangeSheet> {
     final oldPassword = _oldPasswordController.text;
     final newPassword = _newPasswordController.text;
     final confirmPassword = _confirmPasswordController.text;
+    final strings = AppText.of(context);
 
     if (oldPassword.isEmpty || newPassword.isEmpty) {
-      setState(() => _errorText = 'Eski va yangi parolni kiriting');
+      setState(() => _errorText = strings.passwordRequired);
       return;
     }
     if (newPassword.length < 4) {
-      setState(
-        () => _errorText = 'Yangi parol kamida 4 ta belgidan iborat bo\'lsin',
-      );
+      setState(() => _errorText = strings.passwordTooShort);
       return;
     }
     if (newPassword != confirmPassword) {
-      setState(() => _errorText = 'Yangi parol tasdiqlash bilan mos emas');
+      setState(() => _errorText = strings.passwordMismatch);
       return;
     }
 
@@ -553,7 +666,7 @@ class _PasswordChangeSheetState extends State<_PasswordChangeSheet> {
         _loading = false;
         _errorText = error is AuthException
             ? error.message
-            : 'Parolni yangilashda xatolik yuz berdi';
+            : strings.passwordChangeError;
       });
     }
   }
@@ -568,9 +681,9 @@ class _PasswordChangeSheetState extends State<_PasswordChangeSheet> {
         children: [
           Row(
             children: [
-              const Expanded(
+              Expanded(
                 child: Text(
-                  'Parolni almashtirish',
+                  AppText.of(context).passwordChangeTitle,
                   style: TextStyle(
                     fontSize: 18,
                     fontWeight: FontWeight.w800,
@@ -587,19 +700,19 @@ class _PasswordChangeSheetState extends State<_PasswordChangeSheet> {
           const SizedBox(height: 6),
           _passwordField(
             controller: _oldPasswordController,
-            label: 'Eski parol',
+            label: AppText.of(context).oldPassword,
             obscure: _obscureOld,
             onToggle: () => setState(() => _obscureOld = !_obscureOld),
           ),
           _passwordField(
             controller: _newPasswordController,
-            label: 'Yangi parol',
+            label: AppText.of(context).newPassword,
             obscure: _obscureNew,
             onToggle: () => setState(() => _obscureNew = !_obscureNew),
           ),
           _passwordField(
             controller: _confirmPasswordController,
-            label: 'Yangi parolni tasdiqlang',
+            label: AppText.of(context).confirmNewPassword,
             obscure: _obscureNew,
             onToggle: () => setState(() => _obscureNew = !_obscureNew),
           ),
@@ -636,9 +749,9 @@ class _PasswordChangeSheetState extends State<_PasswordChangeSheet> {
                         color: Colors.white,
                       ),
                     )
-                  : const Text(
-                      'Parolni yangilash',
-                      style: TextStyle(
+                  : Text(
+                      AppText.of(context).passwordChangeButton,
+                      style: const TextStyle(
                         fontSize: 15,
                         fontWeight: FontWeight.w700,
                       ),
@@ -688,7 +801,6 @@ class _PasswordChangeSheetState extends State<_PasswordChangeSheet> {
 }
 
 /// Akkauntni butunlay o'chirish — qaytarib bo'lmaydigan amal.
-/// Ogohlantirish + parol bilan tasdiqlash talab qilinadi.
 class _DeleteAccountSheet extends StatefulWidget {
   const _DeleteAccountSheet({required this.session});
 
@@ -699,44 +811,22 @@ class _DeleteAccountSheet extends StatefulWidget {
 }
 
 class _DeleteAccountSheetState extends State<_DeleteAccountSheet> {
-  final TextEditingController _passwordController = TextEditingController();
-  bool _obscure = true;
   bool _loading = false;
-  String? _errorText;
-
-  @override
-  void dispose() {
-    _passwordController.dispose();
-    super.dispose();
-  }
 
   Future<void> _submit() async {
-    final password = _passwordController.text;
-    if (password.isEmpty) {
-      setState(() => _errorText = 'Tasdiqlash uchun parolingizni kiriting');
-      return;
-    }
-
     setState(() {
       _loading = true;
-      _errorText = null;
     });
 
     try {
       final service = AuthService();
-      await service.deleteMyAccount(
-        accessToken: widget.session.accessToken,
-        password: password,
-      );
+      await service.deleteMyAccount(accessToken: widget.session.accessToken);
       if (!mounted) return;
       Navigator.of(context).pop(true);
-    } catch (error) {
+    } catch (_) {
       if (!mounted) return;
       setState(() {
         _loading = false;
-        _errorText = error is AuthException
-            ? error.message
-            : 'Akkauntni o\'chirishda xatolik yuz berdi';
       });
     }
   }
@@ -751,9 +841,9 @@ class _DeleteAccountSheetState extends State<_DeleteAccountSheet> {
         children: [
           Row(
             children: [
-              const Expanded(
+              Expanded(
                 child: Text(
-                  'Akkauntni o\'chirish',
+                  AppText.of(context).deleteAccountTitle,
                   style: TextStyle(
                     fontSize: 18,
                     fontWeight: FontWeight.w800,
@@ -776,20 +866,20 @@ class _DeleteAccountSheetState extends State<_DeleteAccountSheet> {
               borderRadius: BorderRadius.circular(14),
               border: Border.all(color: const Color(0xFFFECACA)),
             ),
-            child: const Column(
+            child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Row(
                   children: [
-                    Icon(
+                    const Icon(
                       Icons.warning_amber_rounded,
                       size: 18,
                       color: Color(0xFFA70E07),
                     ),
-                    SizedBox(width: 6),
+                    const SizedBox(width: 6),
                     Text(
-                      'Bu amalni qaytarib bo\'lmaydi!',
-                      style: TextStyle(
+                      AppText.of(context).deleteAccountWarningTitle,
+                      style: const TextStyle(
                         fontSize: 13,
                         fontWeight: FontWeight.w800,
                         color: Color(0xFFA70E07),
@@ -797,12 +887,10 @@ class _DeleteAccountSheetState extends State<_DeleteAccountSheet> {
                     ),
                   ],
                 ),
-                SizedBox(height: 6),
+                const SizedBox(height: 6),
                 Text(
-                  'Akkauntingiz va unga bog\'liq barcha ma\'lumotlar '
-                  '(guruhlar, davomat, ballar, to\'lov tarixi) butunlay '
-                  'o\'chib ketadi. Qayta tiklash imkoni yo\'q.',
-                  style: TextStyle(
+                  AppText.of(context).deleteAccountWarningBody,
+                  style: const TextStyle(
                     fontSize: 12.5,
                     fontWeight: FontWeight.w600,
                     color: Color(0xFF7F1D1D),
@@ -813,44 +901,14 @@ class _DeleteAccountSheetState extends State<_DeleteAccountSheet> {
             ),
           ),
           const SizedBox(height: 12),
-          TextField(
-            controller: _passwordController,
-            obscureText: _obscure,
-            decoration: InputDecoration(
-              labelText: 'Parolingizni kiriting',
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(14),
-              ),
-              focusedBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(14),
-                borderSide: const BorderSide(
-                  color: AppTheme.brandColor,
-                  width: 1.4,
-                ),
-              ),
-              suffixIcon: IconButton(
-                onPressed: () => setState(() => _obscure = !_obscure),
-                icon: Icon(
-                  _obscure
-                      ? Icons.visibility_outlined
-                      : Icons.visibility_off_outlined,
-                  size: 20,
-                  color: const Color(0xFF7B8495),
-                ),
-              ),
+          Text(
+            AppText.of(context).deleteAccountConfirmHint,
+            style: const TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+              color: Color(0xFF7F1D1D),
             ),
           ),
-          if (_errorText != null) ...[
-            const SizedBox(height: 8),
-            Text(
-              _errorText!,
-              style: const TextStyle(
-                fontSize: 12.5,
-                fontWeight: FontWeight.w600,
-                color: Color(0xFFA70E07),
-              ),
-            ),
-          ],
           const SizedBox(height: 12),
           SizedBox(
             width: double.infinity,
@@ -868,7 +926,7 @@ class _DeleteAccountSheetState extends State<_DeleteAccountSheet> {
                     )
                   : const Icon(Icons.delete_forever_outlined, size: 20),
               label: Text(
-                _loading ? '' : 'Akkauntni butunlay o\'chirish',
+                AppText.of(context).deleteAccountButton,
                 style: const TextStyle(
                   fontSize: 15,
                   fontWeight: FontWeight.w700,
@@ -1035,11 +1093,13 @@ class _SettingsTile extends StatelessWidget {
     required this.icon,
     required this.title,
     required this.onTap,
+    this.subtitle,
   });
 
   final IconData icon;
   final String title;
   final VoidCallback onTap;
+  final String? subtitle;
 
   @override
   Widget build(BuildContext context) {
@@ -1073,6 +1133,73 @@ class _SettingsTile extends StatelessWidget {
             ),
             const SizedBox(width: 12),
             Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: const TextStyle(
+                      fontSize: 14.5,
+                      fontWeight: FontWeight.w700,
+                      color: Color(0xFF182033),
+                    ),
+                  ),
+                  if (subtitle != null) ...[
+                    const SizedBox(height: 2),
+                    Text(
+                      subtitle!,
+                      style: const TextStyle(
+                        fontSize: 12.5,
+                        fontWeight: FontWeight.w600,
+                        color: Color(0xFF7A8394),
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+            const Icon(Icons.chevron_right_rounded, color: Color(0xFF9AA2B2)),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _LanguageOption extends StatelessWidget {
+  const _LanguageOption({
+    required this.title,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final String title;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(16),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: selected ? AppTheme.brandColor : const Color(0xFFE6EAF0),
+            width: selected ? 1.4 : 1,
+          ),
+        ),
+        child: Row(
+          children: [
+            Icon(
+              selected ? Icons.radio_button_checked : Icons.radio_button_off,
+              color: selected ? AppTheme.brandColor : const Color(0xFF9AA2B2),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
               child: Text(
                 title,
                 style: const TextStyle(
@@ -1082,7 +1209,6 @@ class _SettingsTile extends StatelessWidget {
                 ),
               ),
             ),
-            const Icon(Icons.chevron_right_rounded, color: Color(0xFF9AA2B2)),
           ],
         ),
       ),
