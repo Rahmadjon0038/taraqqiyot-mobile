@@ -8,6 +8,7 @@ import '../features/auth/presentation/login_page.dart';
 import '../features/auth/presentation/splash_page.dart';
 import '../features/home/presentation/pages/role_aware_home_page.dart';
 import '../features/notifications/presentation/notification_detail_page.dart';
+import '../core/localization/app_language.dart';
 import '../features/profile/data/avatar_library_service.dart';
 import '../core/services/notification_service.dart';
 import 'theme/app_theme.dart';
@@ -24,6 +25,7 @@ class _TaraqqiyotAppState extends State<TaraqqiyotApp> {
   final AuthStorage _authStorage = AuthStorage();
   final AvatarLibraryService _avatarLibraryService =
       const AvatarLibraryService();
+  final AppLanguageController _languageController = AppLanguageController('uz');
 
   AuthSession? _session;
   bool _bootstrapping = true;
@@ -49,6 +51,7 @@ class _TaraqqiyotAppState extends State<TaraqqiyotApp> {
 
   Future<void> _restoreSession() async {
     try {
+      await _languageController.load();
       final savedSession = await _authStorage.loadSession();
 
       if (savedSession == null) {
@@ -155,6 +158,12 @@ class _TaraqqiyotAppState extends State<TaraqqiyotApp> {
   }
 
   @override
+  void dispose() {
+    _languageController.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     if (!_scheduledNotificationFlush) {
       _scheduledNotificationFlush = true;
@@ -168,11 +177,12 @@ class _TaraqqiyotAppState extends State<TaraqqiyotApp> {
       title: 'Taraqqiyot Teaching Center',
       theme: AppTheme.light(),
       navigatorKey: NotificationService.instance.navigatorKey,
-      // App foni oq bo'lgani uchun status bar (soat, batareya, signal)
-      // barcha sahifalarda qora rangda ko'rinishi kerak
-      builder: (context, child) => AnnotatedRegion<SystemUiOverlayStyle>(
-        value: SystemUiOverlayStyle.dark,
-        child: child ?? const SizedBox.shrink(),
+      builder: (context, child) => AppLanguageScope(
+        controller: _languageController,
+        child: AnnotatedRegion<SystemUiOverlayStyle>(
+          value: SystemUiOverlayStyle.dark,
+          child: child ?? const SizedBox.shrink(),
+        ),
       ),
       onGenerateRoute: (settings) {
         if (settings.name == NotificationDetailPage.routeName) {

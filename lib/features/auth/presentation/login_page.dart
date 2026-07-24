@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:lucide_icons/lucide_icons.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../../app/theme/app_theme.dart';
 
@@ -20,7 +22,17 @@ class _LoginPageState extends State<LoginPage> {
 
   bool _isLoading = false;
   bool _obscurePassword = true;
+  bool _rememberMe = false;
   String? _errorText;
+
+  static const String _rememberedUsernameKey =
+      'taraqqiyot_remembered_username';
+
+  @override
+  void initState() {
+    super.initState();
+    _restoreRememberedUsername();
+  }
 
   @override
   void dispose() {
@@ -29,8 +41,34 @@ class _LoginPageState extends State<LoginPage> {
     super.dispose();
   }
 
+  Future<void> _restoreRememberedUsername() async {
+    final prefs = await SharedPreferences.getInstance();
+    final savedUsername = prefs.getString(_rememberedUsernameKey);
+    if (!mounted) return;
+    if (savedUsername != null && savedUsername.isNotEmpty) {
+      setState(() {
+        _usernameController.text = savedUsername;
+        _rememberMe = true;
+      });
+    }
+  }
+
+  Future<void> _persistRememberedUsername() async {
+    final prefs = await SharedPreferences.getInstance();
+    if (_rememberMe) {
+      await prefs.setString(
+        _rememberedUsernameKey,
+        _usernameController.text.trim(),
+      );
+    } else {
+      await prefs.remove(_rememberedUsernameKey);
+    }
+  }
+
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
+
+    await _persistRememberedUsername();
 
     setState(() {
       _isLoading = true;
@@ -53,6 +91,86 @@ class _LoginPageState extends State<LoginPage> {
         });
       }
     }
+  }
+
+  Future<void> _showForgotPasswordDialog() async {
+    await showDialog<void>(
+      context: context,
+      barrierDismissible: true,
+      builder: (dialogContext) {
+        return Dialog(
+          backgroundColor: Colors.white,
+          insetPadding: const EdgeInsets.symmetric(horizontal: 32),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(28),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(24, 28, 24, 22),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 78,
+                  height: 78,
+                  decoration: const BoxDecoration(
+                    color: Color(0xFFFBE9E7),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(
+                    Icons.lock_reset_rounded,
+                    color: AppTheme.brandColor,
+                    size: 42,
+                  ),
+                ),
+                const SizedBox(height: 18),
+                const Text(
+                  'Parolni tiklash',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    color: Color(0xFF111827),
+                    fontSize: 20,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                const SizedBox(height: 10),
+                const Text(
+                  'Parolni tiklash uchun administratorga murojaat qiling.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    color: Color(0xFF6B7280),
+                    fontSize: 14.5,
+                    height: 1.4,
+                  ),
+                ),
+                const SizedBox(height: 24),
+                SizedBox(
+                  width: double.infinity,
+                  height: 50,
+                  child: ElevatedButton(
+                    onPressed: () => Navigator.of(dialogContext).pop(),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppTheme.brandColor,
+                      foregroundColor: Colors.white,
+                      elevation: 0,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                    ),
+                    child: const Text(
+                      'Tushunarli',
+                      style: TextStyle(
+                        fontSize: 15.5,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
   }
 
   @override
@@ -153,13 +271,17 @@ class _LoginPageState extends State<LoginPage> {
                         Row(
                           children: [
                             _RememberCheckBox(
-                              value: false,
+                              value: _rememberMe,
                               label: 'Meni eslab qol',
-                              onChanged: (_) {},
+                              onChanged: (value) {
+                                setState(() {
+                                  _rememberMe = value;
+                                });
+                              },
                             ),
                             const Spacer(),
                             TextButton(
-                              onPressed: () {},
+                              onPressed: _showForgotPasswordDialog,
                               style: TextButton.styleFrom(
                                 foregroundColor: AppTheme.brandColor,
                                 padding: EdgeInsets.zero,
@@ -398,6 +520,21 @@ class _RememberCheckBox extends StatelessWidget {
 class _SocialRow extends StatelessWidget {
   const _SocialRow();
 
+  static const String _instagramUrl =
+      'https://www.instagram.com/taraqqiyot_namangan/';
+  static const String _facebookUrl =
+      'https://www.facebook.com/namangan.taraqqiyot';
+  static const String _telegramUrl =
+      'https://t.me/taraqqiyot_namangan_rasmiy';
+
+  Future<void> _open(String url) async {
+    try {
+      await launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
+    } catch (_) {
+      // Havola ochilmasa jim o'tamiz
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Row(
@@ -407,18 +544,21 @@ class _SocialRow extends StatelessWidget {
           icon: LucideIcons.instagram,
           backgroundColor: Colors.white,
           iconColor: const Color(0xFFE1306C),
+          onTap: () => _open(_instagramUrl),
         ),
         const SizedBox(width: 16),
         _SocialButton(
-          icon: FontAwesomeIcons.youtube,
+          icon: FontAwesomeIcons.facebookF,
           backgroundColor: Colors.white,
-          iconColor: const Color(0xFFFF0000),
+          iconColor: const Color(0xFF1877F2),
+          onTap: () => _open(_facebookUrl),
         ),
         const SizedBox(width: 16),
         _SocialButton(
           icon: FontAwesomeIcons.telegram,
           backgroundColor: Colors.white,
           iconColor: const Color(0xFF229ED9),
+          onTap: () => _open(_telegramUrl),
         ),
       ],
     );
@@ -430,29 +570,34 @@ class _SocialButton extends StatelessWidget {
     required this.icon,
     required this.backgroundColor,
     required this.iconColor,
+    required this.onTap,
   });
 
   final IconData icon;
   final Color backgroundColor;
   final Color iconColor;
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: 64,
-      height: 64,
-      decoration: BoxDecoration(
-        color: backgroundColor,
-        borderRadius: BorderRadius.circular(18),
-        boxShadow: const [
-          BoxShadow(
-            color: Color(0x1A000000),
-            blurRadius: 18,
-            offset: Offset(0, 8),
-          ),
-        ],
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        width: 64,
+        height: 64,
+        decoration: BoxDecoration(
+          color: backgroundColor,
+          borderRadius: BorderRadius.circular(18),
+          boxShadow: const [
+            BoxShadow(
+              color: Color(0x1A000000),
+              blurRadius: 18,
+              offset: Offset(0, 8),
+            ),
+          ],
+        ),
+        child: Icon(icon, color: iconColor, size: 30),
       ),
-      child: Icon(icon, color: iconColor, size: 30),
     );
   }
 }

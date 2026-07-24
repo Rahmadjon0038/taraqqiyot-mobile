@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../../core/localization/app_language.dart';
 import '../../auth/models/auth_session.dart';
 import '../../profile/presentation/avatar_picker_modal.dart';
 import '../../profile/presentation/widgets/profile_avatar.dart';
@@ -18,15 +19,16 @@ class StudentHomePage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final strings = AppText.of(context);
     final user = session.user;
     final raw = user.raw;
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Student panel'),
+        title: Text(strings.studentPanel),
         actions: [
           IconButton(
-            tooltip: 'Chiqish',
+            tooltip: strings.logout,
             onPressed: onLogout,
             icon: const Icon(Icons.logout_rounded),
           ),
@@ -37,7 +39,7 @@ class StudentHomePage extends StatelessWidget {
         children: [
           _HeaderCard(
             name: user.fullName.isEmpty ? user.username : user.fullName,
-            subtitle: 'Student hisobingiz faol',
+            subtitle: strings.studentActiveSubtitle,
             accent: const Color(0xFF0F766E),
             avatarKey: user.avatarKey,
             avatarUrl: user.avatarUrl,
@@ -55,23 +57,32 @@ class StudentHomePage extends StatelessWidget {
           ),
           const SizedBox(height: 16),
           _InfoCard(
-            title: 'Profil',
+            title: strings.studentProfile,
             items: [
-              ('Username', user.username),
-              ('Role', user.role),
-              ('Telefon', _text(raw['phone'])),
-              ('Ikkinchi telefon', _text(raw['phone2'])),
+              (strings.username, user.username),
+              (strings.role, user.role),
+              (strings.phone, _text(raw['phone'], strings.unavailable)),
+              (strings.phone2, _text(raw['phone2'], strings.unavailable)),
             ],
           ),
           const SizedBox(height: 16),
           _InfoCard(
-            title: 'Guruh',
+            title: strings.studentGroup,
             items: [
-              ('Guruh nomi', _text(raw['group_name'])),
-              ('Teacher', _text(raw['teacher_name'])),
-              ('Fan', _text(raw['subject_name'])),
-              ('Xona', _text(raw['room_number'])),
-              ('Holat', _text(raw['group_status'])),
+              (
+                strings.groupName,
+                _text(raw['group_name'], strings.unavailable),
+              ),
+              (
+                strings.teacher,
+                _text(raw['teacher_name'], strings.unavailable),
+              ),
+              (
+                strings.subject,
+                _text(raw['subject_name'], strings.unavailable),
+              ),
+              (strings.room, _text(raw['room_number'], strings.unavailable)),
+              (strings.status, _text(raw['group_status'], strings.unavailable)),
             ],
           ),
         ],
@@ -79,9 +90,9 @@ class StudentHomePage extends StatelessWidget {
     );
   }
 
-  static String _text(Object? value) {
+  static String _text(Object? value, String fallback) {
     final text = value?.toString().trim() ?? '';
-    return text.isEmpty || text == 'null' ? 'Mavjud emas' : text;
+    return text.isEmpty || text == 'null' ? fallback : text;
   }
 }
 
@@ -124,7 +135,7 @@ class _HeaderCard extends StatelessWidget {
             offset: const Offset(0, 14),
           ),
         ],
-        ),
+      ),
       child: Row(
         children: [
           ProfileAvatar(
