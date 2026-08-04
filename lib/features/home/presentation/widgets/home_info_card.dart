@@ -31,7 +31,7 @@ class HomeInfoCard extends StatelessWidget {
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(24),
         boxShadow: const [
           BoxShadow(
             color: Color(0x0B101828),
@@ -98,7 +98,7 @@ class HomeInfoCard extends StatelessWidget {
             ],
           ),
           ClipRRect(
-            borderRadius: BorderRadius.circular(10),
+            borderRadius: BorderRadius.circular(18),
             child: LinearProgressIndicator(
               value: progress,
               minHeight: 4,

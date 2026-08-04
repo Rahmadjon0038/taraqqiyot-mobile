@@ -11,6 +11,7 @@ import '../features/notifications/presentation/notification_detail_page.dart';
 import '../core/localization/app_language.dart';
 import '../features/profile/data/avatar_library_service.dart';
 import '../core/services/notification_service.dart';
+import '../core/navigation/app_route_observer.dart';
 import 'theme/app_theme.dart';
 
 class TaraqqiyotApp extends StatefulWidget {
@@ -177,6 +178,7 @@ class _TaraqqiyotAppState extends State<TaraqqiyotApp> {
       title: 'Taraqqiyot Teaching Center',
       theme: AppTheme.light(),
       navigatorKey: NotificationService.instance.navigatorKey,
+      navigatorObservers: [appRouteObserver],
       builder: (context, child) => AppLanguageScope(
         controller: _languageController,
         child: AnnotatedRegion<SystemUiOverlayStyle>(

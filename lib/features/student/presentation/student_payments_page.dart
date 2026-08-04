@@ -257,7 +257,7 @@ class _SummaryHero extends StatelessWidget {
       width: double.infinity,
       clipBehavior: Clip.antiAlias,
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(22),
+        borderRadius: BorderRadius.circular(16),
         gradient: const LinearGradient(
           colors: [Color(0xFF7C0A05), Color(0xFFA70E07), Color(0xFFD32F2F)],
           begin: Alignment.topLeft,
@@ -308,7 +308,7 @@ class _SummaryHero extends StatelessWidget {
                       padding: const EdgeInsets.all(6),
                       decoration: BoxDecoration(
                         color: Colors.white.withValues(alpha: 0.16),
-                        borderRadius: BorderRadius.circular(10),
+                        borderRadius: BorderRadius.circular(16),
                       ),
                       child: const Icon(
                         Icons.account_balance_wallet_rounded,
@@ -383,7 +383,7 @@ class _HeroStat extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 8),
         decoration: BoxDecoration(
           color: Colors.white.withValues(alpha: 0.14),
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(16),
           border: Border.all(color: Colors.white.withValues(alpha: 0.12)),
         ),
         child: Column(
@@ -449,17 +449,17 @@ class _MonthSelector extends StatelessWidget {
                   final selected = month == selectedMonth;
                   return Material(
                     color: selected ? AppTheme.brandColor : Colors.white,
-                    borderRadius: BorderRadius.circular(999),
+                    borderRadius: BorderRadius.circular(16),
                     child: InkWell(
                       onTap: () => onSelected(month),
-                      borderRadius: BorderRadius.circular(999),
+                      borderRadius: BorderRadius.circular(16),
                       child: Container(
                         padding: const EdgeInsets.symmetric(
                           horizontal: 13,
                           vertical: 8,
                         ),
                         decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(999),
+                          borderRadius: BorderRadius.circular(16),
                           border: Border.all(
                             color: selected
                                 ? AppTheme.brandColor
@@ -508,7 +508,7 @@ class _PaymentCard extends StatelessWidget {
       clipBehavior: Clip.antiAlias,
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(16),
         border: Border.all(color: const Color(0xFFE2E8F0)),
         boxShadow: const [
           BoxShadow(
@@ -549,7 +549,7 @@ class _PaymentCard extends StatelessWidget {
                           begin: Alignment.topLeft,
                           end: Alignment.bottomRight,
                         ),
-                        borderRadius: BorderRadius.circular(12),
+                        borderRadius: BorderRadius.circular(16),
                       ),
                       child: const Icon(
                         Icons.receipt_long_rounded,
@@ -601,7 +601,7 @@ class _PaymentCard extends StatelessWidget {
                   ),
                   decoration: BoxDecoration(
                     color: const Color(0xFFF8FAFC),
-                    borderRadius: BorderRadius.circular(14),
+                    borderRadius: BorderRadius.circular(16),
                   ),
                   child: Column(
                     children: [
@@ -627,7 +627,7 @@ class _PaymentCard extends StatelessWidget {
                       const SizedBox(height: 10),
                       // To'lov jarayoni progress bar
                       ClipRRect(
-                        borderRadius: BorderRadius.circular(999),
+                        borderRadius: BorderRadius.circular(16),
                         child: SizedBox(
                           height: 6,
                           width: double.infinity,
@@ -645,7 +645,7 @@ class _PaymentCard extends StatelessWidget {
                                       ],
                                     ),
                                     borderRadius: BorderRadius.all(
-                                      Radius.circular(999),
+                                      Radius.circular(16),
                                     ),
                                   ),
                                 ),
@@ -761,7 +761,7 @@ class _MiniChip extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
       decoration: BoxDecoration(
         color: color.withValues(alpha: 0.08),
-        borderRadius: BorderRadius.circular(999),
+        borderRadius: BorderRadius.circular(16),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -807,7 +807,7 @@ class _TransactionCard extends StatelessWidget {
             height: 38,
             decoration: BoxDecoration(
               color: const Color(0xFF16934F).withValues(alpha: 0.10),
-              borderRadius: BorderRadius.circular(12),
+              borderRadius: BorderRadius.circular(16),
             ),
             child: const Icon(
               Icons.check_circle_rounded,
@@ -877,7 +877,7 @@ class _StatusPill extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
         color: color.withValues(alpha: 0.10),
-        borderRadius: BorderRadius.circular(999),
+        borderRadius: BorderRadius.circular(16),
       ),
       child: Text(
         label,
@@ -919,7 +919,7 @@ class _EmptyPaymentsState extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 26),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(24),
+        borderRadius: BorderRadius.circular(16),
         border: Border.all(color: const Color(0xFFE2E8F0)),
       ),
       child: const Column(

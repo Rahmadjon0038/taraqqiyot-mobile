@@ -127,14 +127,14 @@ class _HeaderCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         gradient: LinearGradient(
           colors: [accent, accent.withValues(alpha: 0.82)],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
-        borderRadius: BorderRadius.circular(24),
+        borderRadius: BorderRadius.circular(20),
         boxShadow: [
           BoxShadow(
             color: accent.withValues(alpha: 0.22),
@@ -150,11 +150,11 @@ class _HeaderCard extends StatelessWidget {
             avatarUrl: avatarUrl,
             role: role,
             seed: seed,
-            size: 58,
+            size: 50,
             showBorder: true,
             onTap: onAvatarTap,
           ),
-          const SizedBox(width: 16),
+          const SizedBox(width: 12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -163,16 +163,16 @@ class _HeaderCard extends StatelessWidget {
                   name,
                   style: const TextStyle(
                     color: Colors.white,
-                    fontSize: 22,
-                    fontWeight: FontWeight.w800,
+                    fontSize: 19,
+                    fontWeight: FontWeight.w700,
                   ),
                 ),
-                const SizedBox(height: 4),
+                const SizedBox(height: 2),
                 Text(
                   subtitle,
                   style: TextStyle(
                     color: Colors.white.withValues(alpha: 0.86),
-                    fontSize: 13.5,
+                    fontSize: 12.5,
                   ),
                 ),
               ],

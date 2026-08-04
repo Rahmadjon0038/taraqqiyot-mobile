@@ -135,10 +135,10 @@ class _TopHeader extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.fromLTRB(12, 10, 12, 0),
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
         decoration: BoxDecoration(
           color: Colors.white,
-          borderRadius: BorderRadius.circular(22),
+          borderRadius: BorderRadius.circular(20),
           boxShadow: const [
             BoxShadow(
               color: Color(0x0D101828),
@@ -154,7 +154,7 @@ class _TopHeader extends StatelessWidget {
               avatarUrl: user.avatarUrl,
               role: user.role,
               seed: user.username,
-              size: 48,
+              size: 42,
               onTap: () {
                 AvatarPickerModal.show(
                   context: context,
@@ -170,8 +170,8 @@ class _TopHeader extends StatelessWidget {
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: const TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.w800,
+                  fontSize: 15.5,
+                  fontWeight: FontWeight.w700,
                   color: Color(0xFF182033),
                 ),
               ),
@@ -218,7 +218,7 @@ class _MonthlyPointsChip extends StatefulWidget {
 class _MonthlyPointsChipState extends State<_MonthlyPointsChip> {
   final StudentGroupsService _service = StudentGroupsService();
   int? _points;
-  bool _hasError = false;
+  bool _isLoading = true;
 
   @override
   void initState() {
@@ -233,22 +233,22 @@ class _MonthlyPointsChipState extends State<_MonthlyPointsChip> {
   }
 
   Future<void> _load() async {
-    final now = DateTime.now();
-    final month = '${now.year}-${now.month.toString().padLeft(2, '0')}';
     try {
-      final report = await _service.fetchMyPointReports(
+      final reports = await _service.fetchMyPointReports(
         widget.session,
-        month: month,
+        month: 'all',
       );
+      final points = reports.summary.totalPoints;
       if (!mounted) return;
       setState(() {
-        _points = report.summary.totalPoints;
-        _hasError = false;
+        _points = points;
+        _isLoading = false;
       });
     } catch (_) {
       if (!mounted) return;
       setState(() {
-        _hasError = true;
+        _points = 0;
+        _isLoading = false;
       });
     }
   }
@@ -265,23 +265,19 @@ class _MonthlyPointsChipState extends State<_MonthlyPointsChip> {
 
   @override
   Widget build(BuildContext context) {
-    // Xatolik bo'lsa header'ni bezovta qilmaslik uchun chip yashiriladi
-    if (_hasError) return const SizedBox.shrink();
-
-    // Gradientli qizil pill + 3D oltin yulduz + oq ball raqami
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
       onTap: _openOverview,
       child: Container(
-        height: 31,
-        padding: const EdgeInsets.fromLTRB(5, 0, 10, 0),
+        height: 30,
+        padding: const EdgeInsets.fromLTRB(6, 2, 8, 2),
         decoration: BoxDecoration(
           gradient: const LinearGradient(
-            colors: [Color(0xFFEF4A44), Color(0xFFC1161C), Color(0xFF8A0B06)],
+            colors: [Color(0xFFEA4C46), Color(0xFFC81B1B), Color(0xFF8A0B06)],
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
           ),
-          borderRadius: BorderRadius.circular(999),
+          borderRadius: BorderRadius.circular(24),
           border: Border.all(
             color: Colors.white.withValues(alpha: 0.30),
             width: 1.1,
@@ -297,58 +293,49 @@ class _MonthlyPointsChipState extends State<_MonthlyPointsChip> {
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            // Yaltiroq oltin yulduz (gradient bilan)
-            ShaderMask(
-              shaderCallback: (bounds) => const LinearGradient(
-                colors: [
-                  Color(0xFFFFE99A),
-                  Color(0xFFFFC23C),
-                  Color(0xFFF59E0B),
-                ],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              ).createShader(bounds),
-              child: const Icon(
-                Icons.star_rounded,
-                size: 19,
-                color: Colors.white,
+            Container(
+              width: 18,
+              height: 18,
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.16),
+                shape: BoxShape.circle,
+              ),
+              child: ShaderMask(
+                shaderCallback: (bounds) => const LinearGradient(
+                  colors: [
+                    Color(0xFFFFF0B8),
+                    Color(0xFFFFD45C),
+                    Color(0xFFF59E0B),
+                  ],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ).createShader(bounds),
+                child: const Icon(
+                  Icons.star_rounded,
+                  size: 12,
+                  color: Colors.white,
+                ),
               ),
             ),
-            const SizedBox(width: 4),
-            if (_points == null)
+            const SizedBox(width: 5),
+            if (_isLoading)
               const SizedBox(
-                width: 12,
-                height: 12,
+                width: 10,
+                height: 10,
                 child: CircularProgressIndicator(
-                  strokeWidth: 2,
+                  strokeWidth: 1.8,
                   color: Colors.white,
                 ),
               )
             else
-              Row(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.baseline,
-                textBaseline: TextBaseline.alphabetic,
-                children: [
-                  Text(
-                    '$_points',
-                    style: const TextStyle(
-                      fontSize: 14.5,
-                      fontWeight: FontWeight.w900,
-                      color: Colors.white,
-                      height: 1,
-                    ),
-                  ),
-                  const SizedBox(width: 3),
-                  Text(
-                    'ball',
-                    style: TextStyle(
-                      fontSize: 9.5,
-                      fontWeight: FontWeight.w700,
-                      color: Colors.white.withValues(alpha: 0.82),
-                    ),
-                  ),
-                ],
+              Text(
+                '$_points',
+                style: const TextStyle(
+                  fontSize: 12.5,
+                  fontWeight: FontWeight.w900,
+                  color: Colors.white,
+                  height: 1,
+                ),
               ),
           ],
         ),
@@ -392,6 +379,7 @@ class _HomeFeedState extends State<_HomeFeed> {
   late Future<HomeContent> _contentFuture;
   late String _month;
   final ScrollController _groupCardsController = ScrollController();
+  final Map<int, Future<StudentGroupDetails>> _groupDetailsCache = {};
 
   final Set<String> _seenStories = <String>{};
 
@@ -433,6 +421,17 @@ class _HomeFeedState extends State<_HomeFeed> {
       target,
       duration: const Duration(milliseconds: 320),
       curve: Curves.easeOutCubic,
+    );
+  }
+
+  Future<StudentGroupDetails> _groupDetailsFor(int groupId) {
+    return _groupDetailsCache.putIfAbsent(
+      groupId,
+      () => _groupsService.fetchMyGroupInfo(
+        widget.session,
+        groupId,
+        month: _month,
+      ),
     );
   }
 
@@ -570,27 +569,54 @@ class _HomeFeedState extends State<_HomeFeed> {
                                             },
                                           ),
                                           const SizedBox(height: 12),
-                                          HomeReportCard(
-                                            summaryText:
-                                                featuredGroups[i]
-                                                    .lastPointDate
-                                                    .isEmpty
-                                                ? 'Hali ball qo‘yilmagan'
-                                                : '${featuredGroups[i].lastDayPoints} ball olingan',
-                                            monthLabel: _reportDateLabel(
-                                              featuredGroups[i].lastPointDate,
+                                          FutureBuilder<StudentGroupDetails>(
+                                            future: _groupDetailsFor(
+                                              featuredGroups[i].groupId,
                                             ),
-                                            onTap: () {
-                                              Navigator.of(context).push(
-                                                MaterialPageRoute(
-                                                  builder: (_) =>
-                                                      StudentPointReportsPage(
-                                                        session: widget.session,
-                                                        initialGroupId:
-                                                            featuredGroups[i]
-                                                                .groupId,
-                                                      ),
+                                            builder: (context, detailSnapshot) {
+                                              final detail =
+                                                  detailSnapshot.data;
+                                              final report =
+                                                  detail
+                                                          ?.lessonReports
+                                                          .isNotEmpty ==
+                                                      true
+                                                  ? detail!.lessonReports.first
+                                                  : null;
+                                              return HomeReportCard(
+                                                monthLabel:
+                                                    _lessonReportDateLabel(
+                                                  report,
+                                                  fallback: featuredGroups[i]
+                                                      .lastPointDate,
                                                 ),
+                                                homework: report?.homework,
+                                                vocabulary: report?.vocabulary,
+                                                attendance: report?.attendance,
+                                                participation:
+                                                    report?.participation,
+                                                totalScore: report?.total,
+                                                percent: report?.percent,
+                                                feedback: report?.feedback,
+                                                onTap: () {
+                                                  Navigator.of(context).push(
+                                                    MaterialPageRoute(
+                                                      builder: (_) =>
+                                                          StudentPointReportsPage(
+                                                            session:
+                                                                widget.session,
+                                                            initialGroupId:
+                                                                featuredGroups[i]
+                                                                    .groupId,
+                                                            initialMonth:
+                                                                _monthKeyFromLessonDate(
+                                                                  report
+                                                                      ?.lessonDate,
+                                                                ),
+                                                          ),
+                                                    ),
+                                                  );
+                                                },
                                               );
                                             },
                                           ),
@@ -697,11 +723,11 @@ class _HomeFeedState extends State<_HomeFeed> {
                         ),
                       ),
                       const SizedBox(height: 12),
-                      // Oylik ball o'sishi — kumulyativ chart va streak
+                      // Oylik report charti — faqat English guruhlar bo'yicha
                       Padding(
                         padding: const EdgeInsets.symmetric(horizontal: 12),
                         child: HomeMonthlyProgressChart(
-                          groups: featuredGroups,
+                          groups: _englishFeaturedGroups(featuredGroups),
                           loadReports: (groupId) =>
                               _groupsService.fetchMyPointReports(
                                 widget.session,
@@ -709,10 +735,19 @@ class _HomeFeedState extends State<_HomeFeed> {
                                 groupId: groupId,
                               ),
                           onTap: () {
+                            final reportGroups = _englishFeaturedGroups(
+                              featuredGroups,
+                            );
+                            if (reportGroups.isEmpty) return;
                             Navigator.of(context).push(
                               MaterialPageRoute(
-                                builder: (_) => StudentPointReportsPage(
+                                builder: (_) => StudentGroupDetailPage(
                                   session: widget.session,
+                                  groupId: reportGroups.first.groupId,
+                                  initialScheduleDays:
+                                      reportGroups.first.scheduleDays,
+                                  initialScheduleTime:
+                                      reportGroups.first.scheduleTime,
                                 ),
                               ),
                             );
@@ -737,6 +772,15 @@ class _HomeFeedState extends State<_HomeFeed> {
     final active = groups.where((group) => group.isActive).toList();
     if (active.isNotEmpty) return active;
     return [groups.first];
+  }
+
+  List<StudentGroupSummary> _englishFeaturedGroups(
+    List<StudentGroupSummary> groups,
+  ) {
+    final english = groups
+        .where((group) => group.subjectName.trim().toLowerCase() == 'english')
+        .toList();
+    return english.isNotEmpty ? english : groups;
   }
 }
 
@@ -817,7 +861,7 @@ class _NextLessonCard extends StatelessWidget {
       clipBehavior: Clip.antiAlias,
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: BorderRadius.circular(24),
         border: Border.all(color: const Color(0xFFE4E9F1)),
         boxShadow: const [
           BoxShadow(
@@ -857,7 +901,7 @@ class _NextLessonCard extends StatelessWidget {
                           begin: Alignment.topLeft,
                           end: Alignment.bottomRight,
                         ),
-                        borderRadius: BorderRadius.circular(10),
+                        borderRadius: BorderRadius.circular(20),
                       ),
                       child: const Icon(
                         Icons.event_rounded,
@@ -932,7 +976,7 @@ class _NextLessonCard extends StatelessWidget {
                           color: const Color(
                             0xFF4F46E5,
                           ).withValues(alpha: 0.08),
-                          borderRadius: BorderRadius.circular(999),
+                          borderRadius: BorderRadius.circular(16),
                         ),
                         child: Row(
                           mainAxisSize: MainAxisSize.min,
@@ -994,12 +1038,12 @@ class _PaymentStatusCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(18),
+      borderRadius: BorderRadius.circular(24),
       child: Container(
         clipBehavior: Clip.antiAlias,
         decoration: BoxDecoration(
           color: Colors.white,
-          borderRadius: BorderRadius.circular(18),
+          borderRadius: BorderRadius.circular(24),
           border: Border.all(color: const Color(0xFFE4E9F1)),
           boxShadow: const [
             BoxShadow(
@@ -1039,7 +1083,7 @@ class _PaymentStatusCard extends StatelessWidget {
                             begin: Alignment.topLeft,
                             end: Alignment.bottomRight,
                           ),
-                          borderRadius: BorderRadius.circular(10),
+                          borderRadius: BorderRadius.circular(16),
                         ),
                         child: const Icon(
                           Icons.payments_rounded,
@@ -1149,7 +1193,7 @@ class _PaymentStatusCard extends StatelessWidget {
                             ),
                             decoration: BoxDecoration(
                               color: statusColor.withValues(alpha: 0.10),
-                              borderRadius: BorderRadius.circular(999),
+                              borderRadius: BorderRadius.circular(16),
                             ),
                             child: Text(
                               statusText,
@@ -1185,7 +1229,7 @@ class _HomeCardsLoading extends StatelessWidget {
           height: 148,
           decoration: BoxDecoration(
             color: Colors.white,
-            borderRadius: BorderRadius.circular(18),
+            borderRadius: BorderRadius.circular(24),
           ),
         ),
         const SizedBox(height: 12),
@@ -1193,7 +1237,7 @@ class _HomeCardsLoading extends StatelessWidget {
           height: 148,
           decoration: BoxDecoration(
             color: Colors.white,
-            borderRadius: BorderRadius.circular(18),
+            borderRadius: BorderRadius.circular(24),
           ),
         ),
       ],
@@ -1211,7 +1255,7 @@ class _HomeCardsEmpty extends StatelessWidget {
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: BorderRadius.circular(24),
         border: Border.all(color: const Color(0xFFE6EBF3)),
       ),
       child: const Text(
@@ -1227,32 +1271,51 @@ class _HomeCardsEmpty extends StatelessWidget {
   }
 }
 
-/// Kunlik hisobot sanasi: oxirgi ball qo'yilgan kun bo'yicha yozuv.
-/// Bugun ball qo'yilgan bo'lsa — "Bugun, ...", oldinroq bo'lsa —
-/// "Oxirgi dars: ..." (o'quvchi bugun darsi yo'qligini tushunishi uchun).
-/// Sana kelmasa (hali ball yo'q) joriy oy ko'rsatiladi.
-String _reportDateLabel(String lastPointDate) {
-  final parsed = _parseDdMmYyyyDate(lastPointDate);
-  if (parsed == null) return _dailyDateLabel(DateTime.now());
-
-  final now = DateTime.now();
-  final isToday =
-      parsed.year == now.year &&
-      parsed.month == now.month &&
-      parsed.day == now.day;
-  if (isToday) return 'Bugun, ${_dailyDateLabel(parsed)}';
-  return 'Oxirgi dars: ${_dailyDateLabel(parsed)}';
+/// Oxirgi hisobot sanasi: report bo'lsa uning lesson_date'i,
+/// bo'lmasa fallback matnidan sana olinadi.
+String _lessonReportDateLabel(
+  StudentLessonReport? report, {
+  required String fallback,
+}) {
+  final candidates = <String>[
+    if (report != null) report.lessonDate,
+    if (report != null) report.createdAtLabel,
+    fallback,
+  ];
+  for (final candidate in candidates) {
+    final parsed = _parseReportDate(candidate);
+    if (parsed != null) return _dailyDateLabel(parsed);
+  }
+  return 'Ma\'lumot yo\'q';
 }
 
-DateTime? _parseDdMmYyyyDate(String value) {
-  final parts = value.trim().replaceAll('/', '.').split('.');
+String? _monthKeyFromLessonDate(String? value) {
+  final parsed = _parseReportDate(value ?? '');
+  if (parsed == null) return null;
+  return '${parsed.year}-${parsed.month.toString().padLeft(2, '0')}';
+}
+
+DateTime? _parseReportDate(String value) {
+  final text = value.trim();
+  if (text.isEmpty) return null;
+
+  final iso = DateTime.tryParse(text);
+  if (iso != null) {
+    return DateTime(iso.year, iso.month, iso.day);
+  }
+
+  final normalized = text.replaceAll('/', '.');
+  final parts = normalized.split('.');
   if (parts.length != 3) return null;
-  final day = int.tryParse(parts[0]);
-  final month = int.tryParse(parts[1]);
-  final year = int.tryParse(parts[2]);
-  if (day == null || month == null || year == null) return null;
-  if (month < 1 || month > 12) return null;
-  return DateTime(year, month, day);
+  final first = int.tryParse(parts[0]);
+  final second = int.tryParse(parts[1]);
+  final third = int.tryParse(parts[2]);
+  if (first == null || second == null || third == null) return null;
+  if (second < 1 || second > 12) return null;
+  if (parts[0].length == 4) {
+    return DateTime(first, second, third);
+  }
+  return DateTime(third, second, first);
 }
 
 /// Kunlik hisobot kartasi uchun to'liq sana: "payshanba, 10-iyul 2026"
@@ -1365,7 +1428,7 @@ class _TopActionButton extends StatelessWidget {
               padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
               decoration: BoxDecoration(
                 color: AppTheme.brandColor,
-                borderRadius: BorderRadius.circular(999),
+                borderRadius: BorderRadius.circular(24),
                 border: Border.all(color: Colors.white, width: 1.5),
               ),
               child: Text(

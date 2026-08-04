@@ -85,12 +85,17 @@ class _TeacherShellPageState extends State<_TeacherShellPage> {
   int _currentIndex = 0;
 
   List<_RoleTab> get _tabs => [
-    _RoleTab(
+      _RoleTab(
       title: 'Bosh sahifa',
       icon: Icons.home_rounded,
       builder: (_) => TeacherDashboardPage(
         key: const ValueKey('teacher-dashboard'),
         session: widget.session,
+        onOpenPayments: () {
+          setState(() {
+            _currentIndex = 3;
+          });
+        },
       ),
     ),
     _RoleTab(
@@ -382,10 +387,10 @@ class _RoleHeader extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.fromLTRB(12, 10, 12, 6),
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
         decoration: BoxDecoration(
           color: Colors.white,
-          borderRadius: BorderRadius.circular(22),
+          borderRadius: BorderRadius.circular(20),
           boxShadow: const [
             BoxShadow(
               color: Color(0x0D101828),
@@ -401,7 +406,7 @@ class _RoleHeader extends StatelessWidget {
               avatarUrl: user.avatarUrl,
               role: user.role,
               seed: user.username,
-              size: 48,
+              size: 42,
               onTap: () {
                 AvatarPickerModal.show(
                   context: context,
@@ -416,23 +421,23 @@ class _RoleHeader extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    displayName,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w700,
-                      color: Color(0xFF182033),
-                    ),
+                  displayName,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 15.5,
+                    fontWeight: FontWeight.w700,
+                    color: Color(0xFF182033),
                   ),
-                  const SizedBox(height: 3),
-                  Text(
-                    roleLabel,
-                    style: const TextStyle(
-                      fontSize: 12.5,
-                      fontWeight: FontWeight.w700,
-                      color: Color(0xFF7B8497),
-                      letterSpacing: 0.4,
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  roleLabel,
+                  style: const TextStyle(
+                    fontSize: 11.5,
+                    fontWeight: FontWeight.w700,
+                    color: Color(0xFF7B8497),
+                    letterSpacing: 0.4,
                     ),
                   ),
                 ],
@@ -479,8 +484,8 @@ class _HeaderActionButton extends StatelessWidget {
       clipBehavior: Clip.none,
       children: [
         Container(
-          width: 42,
-          height: 42,
+          width: 40,
+          height: 40,
           decoration: BoxDecoration(
             color: Colors.white,
             shape: BoxShape.circle,
@@ -495,7 +500,7 @@ class _HeaderActionButton extends StatelessWidget {
           child: IconButton(
             onPressed: onPressed,
             padding: EdgeInsets.zero,
-            icon: Icon(icon, color: const Color(0xFF182033), size: 22),
+            icon: Icon(icon, color: const Color(0xFF182033), size: 20),
           ),
         ),
         if (badgeCount > 0)
@@ -630,4 +635,3 @@ class _RoleTab {
   final IconData icon;
   final WidgetBuilder builder;
 }
-

@@ -47,7 +47,155 @@ class _StudentPointsOverviewPageState extends State<StudentPointsOverviewPage> {
 
   Future<StudentPointReportsData> _load() {
     // month='all' — butun o'qish davri bo'yicha to'liq tarix
-    return _service.fetchMyPointReports(widget.session, month: 'all');
+    return _service
+        .fetchMyPointReports(widget.session, month: 'all')
+        .then(_normalizeAllTimeHistory)
+        .catchError((_) async {
+          try {
+            final groups = await _service.fetchMyGroups(widget.session);
+            return _buildFallbackData(groups);
+          } catch (_) {
+            return _buildFallbackData(const <StudentGroupSummary>[]);
+          }
+        });
+  }
+
+  StudentPointReportsData _normalizeAllTimeHistory(
+    StudentPointReportsData data,
+  ) {
+    if (data.events.isEmpty) return data;
+
+    final breakdownMap = <String, _AggregateBucket>{};
+    final monthlyMap = <String, _AggregateBucket>{};
+    final dailyMap = <String, _DailyAggregateBucket>{};
+
+    for (final event in data.events) {
+      final monthKey = _eventMonthKey(event);
+      final groupKey = '${event.groupId ?? 0}:${event.groupName.trim()}';
+      final dayKey = event.dayKey.trim();
+
+      breakdownMap.putIfAbsent(
+        groupKey,
+        () => _AggregateBucket(
+          groupId: event.groupId,
+          groupName: event.groupName.trim().isEmpty ? 'Guruh' : event.groupName,
+        ),
+      ).add(event.points);
+
+      monthlyMap.putIfAbsent(
+        monthKey,
+        () => _AggregateBucket(
+          groupId: null,
+          groupName: monthKey,
+        ),
+      ).add(event.points);
+
+      dailyMap.putIfAbsent(
+        dayKey,
+        () => _DailyAggregateBucket(dayKey),
+      ).add(event.points, event.createdTime);
+    }
+
+    final breakdown = breakdownMap.values
+        .map(
+          (bucket) => StudentPointBreakdown(
+            groupId: bucket.groupId,
+            groupName: bucket.groupName,
+            totalPoints: bucket.totalPoints,
+            totalEvents: bucket.totalEvents,
+          ),
+        )
+        .toList()
+      ..sort((a, b) => b.totalPoints.compareTo(a.totalPoints));
+
+    final monthlyBreakdown = monthlyMap.values
+        .map(
+          (bucket) => StudentPointMonthlyBreakdown(
+            monthName: bucket.groupName,
+            totalPoints: bucket.totalPoints,
+            totalEvents: bucket.totalEvents,
+          ),
+        )
+        .toList()
+      ..sort((a, b) => b.monthName.compareTo(a.monthName));
+
+    final dailyBreakdown = dailyMap.values
+        .map(
+          (bucket) => StudentPointDailyBreakdown(
+            dayKey: bucket.dayKey,
+            totalPoints: bucket.totalPoints,
+            totalEvents: bucket.totalEvents,
+            firstTime: bucket.firstTime,
+            lastTime: bucket.lastTime,
+          ),
+        )
+        .toList()
+      ..sort((a, b) => b.dayKey.compareTo(a.dayKey));
+
+    return StudentPointReportsData(
+      month: data.month,
+      summary: data.summary,
+      breakdown: breakdown,
+      monthlyBreakdown: monthlyBreakdown,
+      teacherBreakdown: data.teacherBreakdown,
+      dailyBreakdown: dailyBreakdown,
+      events: data.events,
+    );
+  }
+
+  StudentPointReportsData _buildFallbackData(List<StudentGroupSummary> groups) {
+    final englishGroups = groups
+        .where((group) => group.subjectName.trim().toLowerCase() == 'english')
+        .toList();
+    final totalPoints = englishGroups.fold<int>(
+      0,
+      (sum, group) => sum + group.monthlyPoints,
+    );
+    final monthKey = _currentMonthKey();
+    final totalEvents = englishGroups.fold<int>(
+      0,
+      (sum, group) => sum + (group.monthlyPoints > 0 ? 1 : 0),
+    );
+
+    return StudentPointReportsData(
+      month: monthKey,
+      summary: StudentPointSummary(
+        totalPoints: totalPoints,
+        totalEvents: totalEvents,
+        attendanceEvents: 0,
+        manualEvents: totalEvents,
+      ),
+      breakdown: englishGroups
+          .map(
+            (group) => StudentPointBreakdown(
+              groupId: group.groupId,
+              groupName: group.groupName,
+              totalPoints: group.monthlyPoints,
+              totalEvents: group.monthlyPoints > 0 ? 1 : 0,
+            ),
+          )
+          .toList(),
+      monthlyBreakdown: [
+        StudentPointMonthlyBreakdown(
+          monthName: monthKey,
+          totalPoints: totalPoints,
+          totalEvents: totalEvents,
+        ),
+      ],
+      teacherBreakdown: englishGroups
+          .map(
+            (group) => StudentPointTeacherBreakdown(
+              monthName: monthKey,
+              teacherId: null,
+              teacherName: group.teacherName,
+              totalPoints: group.monthlyPoints,
+              totalEvents: group.monthlyPoints > 0 ? 1 : 0,
+            ),
+          )
+          .toList(),
+      dailyBreakdown: const <StudentPointDailyBreakdown>[],
+      events: const <StudentPointEvent>[],
+    );
   }
 
   Future<void> _reload() async {
@@ -62,7 +210,7 @@ class _StudentPointsOverviewPageState extends State<StudentPointsOverviewPage> {
     return Scaffold(
       backgroundColor: const Color(0xFFF6F7FB),
       appBar: AppBar(
-        title: const Text('Ballarim'),
+        title: const Text('Oylik ballar'),
         backgroundColor: Colors.transparent,
         surfaceTintColor: Colors.transparent,
       ),
@@ -110,6 +258,7 @@ class _StudentPointsOverviewPageState extends State<StudentPointsOverviewPage> {
               padding: const EdgeInsets.fromLTRB(12, 12, 12, 24),
               children: [
                 _OverviewHero(
+                  title: 'Umumiy ball',
                   currentMonthLabel: _monthLabel(currentMonthKey),
                   currentMonthPoints: currentMonthPoints,
                   totalPoints: data.summary.totalPoints,
@@ -199,17 +348,74 @@ class _StudentPointsOverviewPageState extends State<StudentPointsOverviewPage> {
     if (parsed == null) return 'O\'qishni boshlaganingizdan beri';
     return '${_fullDateLabel(parsed)} dan beri';
   }
+
+  static String _eventMonthKey(StudentPointEvent event) {
+    final month = event.monthName.trim();
+    if (RegExp(r'^\d{4}-\d{2}$').hasMatch(month)) return month;
+
+    final dayDate = _parseIsoDate(event.dayKey);
+    if (dayDate != null) {
+      return '${dayDate.year}-${dayDate.month.toString().padLeft(2, '0')}';
+    }
+
+    final createdDate = _parseIsoDate(event.createdAt);
+    if (createdDate != null) {
+      return '${createdDate.year}-${createdDate.month.toString().padLeft(2, '0')}';
+    }
+
+    return _currentMonthKey();
+  }
+}
+
+class _AggregateBucket {
+  _AggregateBucket({
+    required this.groupId,
+    required this.groupName,
+  });
+
+  final int? groupId;
+  final String groupName;
+  int totalPoints = 0;
+  int totalEvents = 0;
+
+  void add(int points) {
+    totalPoints += points;
+    totalEvents += 1;
+  }
+}
+
+class _DailyAggregateBucket {
+  _DailyAggregateBucket(this.dayKey);
+
+  final String dayKey;
+  int totalPoints = 0;
+  int totalEvents = 0;
+  String firstTime = '';
+  String lastTime = '';
+
+  void add(int points, String createdTime) {
+    totalPoints += points;
+    totalEvents += 1;
+    if (firstTime.isEmpty || createdTime.compareTo(firstTime) < 0) {
+      firstTime = createdTime;
+    }
+    if (lastTime.isEmpty || createdTime.compareTo(lastTime) > 0) {
+      lastTime = createdTime;
+    }
+  }
 }
 
 /// Ikkita katta ko'rsatkichli hero: joriy oy va umumiy ball
 class _OverviewHero extends StatelessWidget {
   const _OverviewHero({
+    required this.title,
     required this.currentMonthLabel,
     required this.currentMonthPoints,
     required this.totalPoints,
     required this.sinceLabel,
   });
 
+  final String title;
   final String currentMonthLabel;
   final int currentMonthPoints;
   final int totalPoints;
@@ -221,7 +427,7 @@ class _OverviewHero extends StatelessWidget {
       width: double.infinity,
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(22),
+        borderRadius: BorderRadius.circular(16),
         gradient: const LinearGradient(
           colors: [Color(0xFF7C0A05), Color(0xFFA70E07), Color(0xFFD32F2F)],
           begin: Alignment.topLeft,
@@ -245,7 +451,7 @@ class _OverviewHero extends StatelessWidget {
                 height: 34,
                 decoration: BoxDecoration(
                   color: Colors.white.withValues(alpha: 0.16),
-                  borderRadius: BorderRadius.circular(11),
+                  borderRadius: BorderRadius.circular(16),
                 ),
                 child: const Icon(
                   Icons.stars_rounded,
@@ -254,10 +460,10 @@ class _OverviewHero extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 10),
-              const Expanded(
+              Expanded(
                 child: Text(
-                  'Ballarim',
-                  style: TextStyle(
+                  title,
+                  style: const TextStyle(
                     color: Colors.white,
                     fontSize: 15.5,
                     fontWeight: FontWeight.w900,
@@ -274,7 +480,7 @@ class _OverviewHero extends StatelessWidget {
                 Expanded(
                   child: _HeroStat(
                     label: currentMonthLabel,
-                    caption: 'Joriy oy',
+                    caption: 'Joriy oy ballari',
                     value: currentMonthPoints,
                   ),
                 ),
@@ -286,7 +492,7 @@ class _OverviewHero extends StatelessWidget {
                 Expanded(
                   child: _HeroStat(
                     label: sinceLabel,
-                    caption: 'Umumiy ball',
+                    caption: 'Barcha vaqt',
                     value: totalPoints,
                   ),
                 ),
@@ -388,20 +594,16 @@ class _MonthCard extends StatelessWidget {
 
     return Material(
       color: Colors.transparent,
-      borderRadius: BorderRadius.circular(18),
+      borderRadius: BorderRadius.circular(16),
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: BorderRadius.circular(16),
         child: Container(
           padding: const EdgeInsets.all(14),
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(18),
+            borderRadius: BorderRadius.circular(16),
             gradient: const LinearGradient(
-              colors: [
-                Color(0xFF7C0A05),
-                Color(0xFFA70E07),
-                Color(0xFFD32F2F),
-              ],
+              colors: [Color(0xFF7C0A05), Color(0xFFA70E07), Color(0xFFD32F2F)],
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
             ),
@@ -428,7 +630,7 @@ class _MonthCard extends StatelessWidget {
                     alignment: Alignment.center,
                     decoration: BoxDecoration(
                       color: Colors.white.withValues(alpha: 0.16),
-                      borderRadius: BorderRadius.circular(13),
+                      borderRadius: BorderRadius.circular(16),
                     ),
                     child: Text(
                       _monthShort(month.monthName),
@@ -467,7 +669,7 @@ class _MonthCard extends StatelessWidget {
                                 ),
                                 decoration: BoxDecoration(
                                   color: Colors.white.withValues(alpha: 0.22),
-                                  borderRadius: BorderRadius.circular(999),
+                                  borderRadius: BorderRadius.circular(16),
                                 ),
                                 child: const Text(
                                   'Joriy oy',
@@ -501,7 +703,7 @@ class _MonthCard extends StatelessWidget {
                     ),
                     decoration: BoxDecoration(
                       color: Colors.white.withValues(alpha: 0.18),
-                      borderRadius: BorderRadius.circular(999),
+                      borderRadius: BorderRadius.circular(16),
                     ),
                     child: Text(
                       positive
@@ -518,10 +720,7 @@ class _MonthCard extends StatelessWidget {
               ),
               if (teachers.isNotEmpty) ...[
                 const SizedBox(height: 12),
-                Divider(
-                  height: 1,
-                  color: Colors.white.withValues(alpha: 0.20),
-                ),
+                Divider(height: 1, color: Colors.white.withValues(alpha: 0.20)),
                 const SizedBox(height: 10),
                 for (var i = 0; i < teachers.length; i++) ...[
                   _TeacherRow(teacher: teachers[i]),
@@ -626,7 +825,7 @@ class _LoadingCard extends StatelessWidget {
       alignment: Alignment.center,
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: BorderRadius.circular(16),
         border: Border.all(color: const Color(0xFFE6EBF3)),
       ),
       child: const CircularProgressIndicator(color: AppTheme.brandColor),
@@ -646,7 +845,7 @@ class _ErrorCard extends StatelessWidget {
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: BorderRadius.circular(16),
         border: Border.all(color: const Color(0xFFE6EBF3)),
       ),
       child: Column(
@@ -684,7 +883,7 @@ class _EmptyCard extends StatelessWidget {
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: BorderRadius.circular(16),
         border: Border.all(color: const Color(0xFFE6EBF3)),
       ),
       child: const Text(

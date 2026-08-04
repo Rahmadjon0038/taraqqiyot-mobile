@@ -108,219 +108,222 @@ class _TeacherPaymentsPageState extends State<TeacherPaymentsPage> {
     return RefreshIndicator(
       onRefresh: _reload,
       color: AppTheme.brandColor,
-      child: ListView(
-        padding: const EdgeInsets.fromLTRB(12, 12, 12, 24),
-        physics: const AlwaysScrollableScrollPhysics(),
-        children: [
-          // Oy statistikasi — eng yuqorida
-          FutureBuilder<TeacherPaymentsResponse>(
-            future: _future,
-            builder: (context, snapshot) {
-              final summary = snapshot.data?.summary;
-              if (summary == null) return const SizedBox.shrink();
-              return Padding(
-                padding: const EdgeInsets.only(bottom: 12),
-                child: _SummaryCard(summary: summary),
-              );
-            },
-          ),
-          // Oy tanlagich
-          SizedBox(
-            height: 36,
-            child: ListView.separated(
-              scrollDirection: Axis.horizontal,
-              itemCount: _months.length,
-              separatorBuilder: (context, index) => const SizedBox(width: 6),
-              itemBuilder: (context, index) {
-                final month = _months[index];
-                final selected = month == _selectedMonth;
-                return GestureDetector(
-                  onTap: () => _selectMonth(month),
-                  child: AnimatedContainer(
-                    duration: const Duration(milliseconds: 180),
-                    padding: const EdgeInsets.symmetric(horizontal: 13),
-                    alignment: Alignment.center,
-                    decoration: BoxDecoration(
-                      color: selected ? AppTheme.brandColor : Colors.white,
-                      borderRadius: BorderRadius.circular(999),
-                      border: Border.all(
-                        color: selected
-                            ? AppTheme.brandColor
-                            : const Color(0xFFD6DDEA),
-                      ),
-                    ),
-                    child: Text(
-                      _formatMonthLabel(month),
-                      style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w700,
-                        color: selected
-                            ? Colors.white
-                            : const Color(0xFF475569),
-                      ),
-                    ),
-                  ),
+      child: Material(
+        color: Colors.transparent,
+        child: ListView(
+          padding: const EdgeInsets.fromLTRB(12, 12, 12, 24),
+          physics: const AlwaysScrollableScrollPhysics(),
+          children: [
+            // Oy statistikasi — eng yuqorida
+            FutureBuilder<TeacherPaymentsResponse>(
+              future: _future,
+              builder: (context, snapshot) {
+                final summary = snapshot.data?.summary;
+                if (summary == null) return const SizedBox.shrink();
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 12),
+                  child: _SummaryCard(summary: summary),
                 );
               },
             ),
-          ),
-          const SizedBox(height: 10),
-          // O'quvchi yoki guruh nomi bo'yicha qidiruv
-          TextField(
-            controller: _searchController,
-            onChanged: (value) => setState(() => _search = value),
-            decoration: InputDecoration(
-              hintText: 'O\'quvchi yoki guruh nomi...',
-              hintStyle: const TextStyle(
-                fontSize: 13,
-                fontWeight: FontWeight.w600,
-                color: Color(0xFF9AA2B2),
-              ),
-              prefixIcon: const Icon(
-                Icons.search_rounded,
-                size: 20,
-                color: Color(0xFF7B8497),
-              ),
-              suffixIcon: _search.isEmpty
-                  ? null
-                  : IconButton(
-                      icon: const Icon(
-                        Icons.close_rounded,
-                        size: 18,
-                        color: Color(0xFF7B8497),
+            // Oy tanlagich
+            SizedBox(
+              height: 36,
+              child: ListView.separated(
+                scrollDirection: Axis.horizontal,
+                itemCount: _months.length,
+                separatorBuilder: (context, index) => const SizedBox(width: 6),
+                itemBuilder: (context, index) {
+                  final month = _months[index];
+                  final selected = month == _selectedMonth;
+                  return GestureDetector(
+                    onTap: () => _selectMonth(month),
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 180),
+                      padding: const EdgeInsets.symmetric(horizontal: 13),
+                      alignment: Alignment.center,
+                      decoration: BoxDecoration(
+                        color: selected ? AppTheme.brandColor : Colors.white,
+                        borderRadius: BorderRadius.circular(999),
+                        border: Border.all(
+                          color: selected
+                              ? AppTheme.brandColor
+                              : const Color(0xFFD6DDEA),
+                        ),
                       ),
-                      onPressed: () {
-                        _searchController.clear();
-                        setState(() => _search = '');
-                      },
+                      child: Text(
+                        _formatMonthLabel(month),
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                          color: selected
+                              ? Colors.white
+                              : const Color(0xFF475569),
+                        ),
+                      ),
                     ),
-              filled: true,
-              fillColor: Colors.white,
-              isDense: true,
-              contentPadding: const EdgeInsets.symmetric(
-                horizontal: 14,
-                vertical: 12,
+                  );
+                },
               ),
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(14),
-                borderSide: const BorderSide(color: Color(0xFFE4E9F1)),
-              ),
-              enabledBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(14),
-                borderSide: const BorderSide(color: Color(0xFFE4E9F1)),
-              ),
-              focusedBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(14),
-                borderSide: const BorderSide(
-                  color: AppTheme.brandColor,
-                  width: 1.4,
+            ),
+            const SizedBox(height: 10),
+            // O'quvchi yoki guruh nomi bo'yicha qidiruv
+            TextField(
+              controller: _searchController,
+              onChanged: (value) => setState(() => _search = value),
+              decoration: InputDecoration(
+                hintText: 'O\'quvchi yoki guruh nomi...',
+                hintStyle: const TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: Color(0xFF9AA2B2),
+                ),
+                prefixIcon: const Icon(
+                  Icons.search_rounded,
+                  size: 20,
+                  color: Color(0xFF7B8497),
+                ),
+                suffixIcon: _search.isEmpty
+                    ? null
+                    : IconButton(
+                        icon: const Icon(
+                          Icons.close_rounded,
+                          size: 18,
+                          color: Color(0xFF7B8497),
+                        ),
+                        onPressed: () {
+                          _searchController.clear();
+                          setState(() => _search = '');
+                        },
+                      ),
+                filled: true,
+                fillColor: Colors.white,
+                isDense: true,
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 12,
+                ),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(14),
+                  borderSide: const BorderSide(color: Color(0xFFE4E9F1)),
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(14),
+                  borderSide: const BorderSide(color: Color(0xFFE4E9F1)),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(14),
+                  borderSide: const BorderSide(
+                    color: AppTheme.brandColor,
+                    width: 1.4,
+                  ),
                 ),
               ),
             ),
-          ),
-          const SizedBox(height: 12),
-          FutureBuilder<TeacherPaymentsResponse>(
-            future: _future,
-            builder: (context, snapshot) {
-              if (snapshot.connectionState == ConnectionState.waiting) {
-                return const Padding(
-                  padding: EdgeInsets.only(top: 60),
-                  child: Center(
-                    child: CircularProgressIndicator(
-                      color: AppTheme.brandColor,
-                    ),
-                  ),
-                );
-              }
-              final data = snapshot.data;
-              if (snapshot.hasError || data == null) {
-                return Padding(
-                  padding: const EdgeInsets.only(top: 40),
-                  child: Center(
-                    child: Column(
-                      children: [
-                        Text(
-                          snapshot.error is TeacherServiceException
-                              ? (snapshot.error as TeacherServiceException)
-                                    .message
-                              : 'To\'lov ma\'lumotlari yuklanmadi',
-                          textAlign: TextAlign.center,
-                          style: const TextStyle(
-                            fontSize: 13.5,
-                            fontWeight: FontWeight.w700,
-                            color: Color(0xFF64748B),
-                          ),
-                        ),
-                        const SizedBox(height: 12),
-                        FilledButton(
-                          onPressed: _reload,
-                          style: FilledButton.styleFrom(
-                            backgroundColor: AppTheme.brandColor,
-                            foregroundColor: Colors.white,
-                          ),
-                          child: const Text('Qayta urinish'),
-                        ),
-                      ],
-                    ),
-                  ),
-                );
-              }
-
-              final query = _search.trim().toLowerCase();
-              final snapshots = query.isEmpty
-                  ? data.snapshots
-                  : data.snapshots
-                        .where(
-                          (item) =>
-                              item.fullName.toLowerCase().contains(query) ||
-                              item.groupName.toLowerCase().contains(query),
-                        )
-                        .toList();
-              return Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  if (snapshots.isEmpty)
-                    Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 18,
-                        vertical: 30,
+            const SizedBox(height: 12),
+            FutureBuilder<TeacherPaymentsResponse>(
+              future: _future,
+              builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const Padding(
+                    padding: EdgeInsets.only(top: 60),
+                    child: Center(
+                      child: CircularProgressIndicator(
+                        color: AppTheme.brandColor,
                       ),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(18),
-                        border: Border.all(color: const Color(0xFFE4E9F1)),
-                      ),
-                      child: const Column(
+                    ),
+                  );
+                }
+                final data = snapshot.data;
+                if (snapshot.hasError || data == null) {
+                  return Padding(
+                    padding: const EdgeInsets.only(top: 40),
+                    child: Center(
+                      child: Column(
                         children: [
-                          Icon(
-                            Icons.receipt_long_rounded,
-                            size: 34,
-                            color: Color(0xFF7B8497),
-                          ),
-                          SizedBox(height: 10),
                           Text(
-                            'Bu oy uchun ma\'lumot topilmadi',
+                            snapshot.error is TeacherServiceException
+                                ? (snapshot.error as TeacherServiceException)
+                                      .message
+                                : 'To\'lov ma\'lumotlari yuklanmadi',
                             textAlign: TextAlign.center,
-                            style: TextStyle(
+                            style: const TextStyle(
                               fontSize: 13.5,
                               fontWeight: FontWeight.w700,
                               color: Color(0xFF64748B),
                             ),
                           ),
+                          const SizedBox(height: 12),
+                          FilledButton(
+                            onPressed: _reload,
+                            style: FilledButton.styleFrom(
+                              backgroundColor: AppTheme.brandColor,
+                              foregroundColor: Colors.white,
+                            ),
+                            child: const Text('Qayta urinish'),
+                          ),
                         ],
                       ),
-                    )
-                  else
-                    for (final item in snapshots) ...[
-                      _SnapshotCard(snapshot: item),
-                      const SizedBox(height: 8),
-                    ],
-                ],
-              );
-            },
-          ),
-        ],
+                    ),
+                  );
+                }
+
+                final query = _search.trim().toLowerCase();
+                final snapshots = query.isEmpty
+                    ? data.snapshots
+                    : data.snapshots
+                          .where(
+                            (item) =>
+                                item.fullName.toLowerCase().contains(query) ||
+                                item.groupName.toLowerCase().contains(query),
+                          )
+                          .toList();
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    if (snapshots.isEmpty)
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 18,
+                          vertical: 30,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(18),
+                          border: Border.all(color: const Color(0xFFE4E9F1)),
+                        ),
+                        child: const Column(
+                          children: [
+                            Icon(
+                              Icons.receipt_long_rounded,
+                              size: 34,
+                              color: Color(0xFF7B8497),
+                            ),
+                            SizedBox(height: 10),
+                            Text(
+                              'Bu oy uchun ma\'lumot topilmadi',
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                fontSize: 13.5,
+                                fontWeight: FontWeight.w700,
+                                color: Color(0xFF64748B),
+                              ),
+                            ),
+                          ],
+                        ),
+                      )
+                    else
+                      for (final item in snapshots) ...[
+                        _SnapshotCard(snapshot: item),
+                        const SizedBox(height: 8),
+                      ],
+                  ],
+                );
+              },
+            ),
+          ],
+        ),
       ),
     );
   }

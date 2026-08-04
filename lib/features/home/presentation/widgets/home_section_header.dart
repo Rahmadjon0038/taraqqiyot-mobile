@@ -27,7 +27,7 @@ class HomeSectionHeader extends StatelessWidget {
         const Spacer(),
         InkWell(
           onTap: onActionTap,
-          borderRadius: BorderRadius.circular(10),
+          borderRadius: BorderRadius.circular(16),
           child: Padding(
             padding: const EdgeInsets.symmetric(vertical: 4),
             child: Row(

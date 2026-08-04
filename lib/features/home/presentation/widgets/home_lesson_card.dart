@@ -20,7 +20,7 @@ class HomeLessonCard extends StatelessWidget {
       width: double.infinity,
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(24),
         gradient: const LinearGradient(
           colors: [Color(0xFFD80E0E), Color(0xFFB10606)],
           begin: Alignment.topLeft,
@@ -94,7 +94,7 @@ class HomeLessonCard extends StatelessWidget {
                     vertical: 10,
                   ),
                   shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(10),
+                    borderRadius: BorderRadius.circular(18),
                   ),
                 ),
                 child: const Row(

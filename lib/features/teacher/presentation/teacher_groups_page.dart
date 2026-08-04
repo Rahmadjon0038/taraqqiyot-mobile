@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../app/theme/app_theme.dart';
+import '../../../core/navigation/app_route_observer.dart';
 import '../../../core/widgets/weekday_pills_row.dart';
 import '../../auth/models/auth_session.dart';
 import '../data/teacher_service.dart';
@@ -17,9 +18,11 @@ class TeacherGroupsPage extends StatefulWidget {
   State<TeacherGroupsPage> createState() => _TeacherGroupsPageState();
 }
 
-class _TeacherGroupsPageState extends State<TeacherGroupsPage> {
+class _TeacherGroupsPageState extends State<TeacherGroupsPage>
+    with RouteAware {
   final TeacherService _service = TeacherService();
   late Future<List<TeacherGroup>> _groupsFuture;
+  ModalRoute<dynamic>? _route;
 
   @override
   void initState() {
@@ -29,8 +32,24 @@ class _TeacherGroupsPageState extends State<TeacherGroupsPage> {
 
   @override
   void dispose() {
+    if (_route != null) {
+      appRouteObserver.unsubscribe(this);
+    }
     _service.dispose();
     super.dispose();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final route = ModalRoute.of(context);
+    if (route is PageRoute && _route != route) {
+      if (_route != null) {
+        appRouteObserver.unsubscribe(this);
+      }
+      _route = route;
+      appRouteObserver.subscribe(this, route);
+    }
   }
 
   Future<void> _reload() async {
@@ -38,6 +57,11 @@ class _TeacherGroupsPageState extends State<TeacherGroupsPage> {
       _groupsFuture = _service.fetchMyGroups(widget.session);
     });
     await _groupsFuture;
+  }
+
+  @override
+  void didPopNext() {
+    _reload();
   }
 
   @override
@@ -112,7 +136,7 @@ class _TeacherGroupCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final hasLessonToday = group.todayLessonsCount > 0;
-    final attendanceDone = group.todayAttendanceFullyCompleted;
+    final reportSentToday = group.todayReportSent;
 
     return Material(
       color: Colors.transparent,
@@ -268,23 +292,23 @@ class _TeacherGroupCard extends StatelessWidget {
                   Row(
                     children: [
                       Icon(
-                        attendanceDone
+                        reportSentToday
                             ? Icons.check_circle_rounded
                             : Icons.pending_rounded,
                         size: 14,
-                        color: attendanceDone
+                        color: reportSentToday
                             ? const Color(0xFF16934F)
                             : const Color(0xFFB45309),
                       ),
                       const SizedBox(width: 6),
                       Text(
-                        attendanceDone
-                            ? 'Bugungi davomat qilindi'
-                            : 'Bugun davomat kutilmoqda',
+                        reportSentToday
+                            ? 'Bugungi report yuborildi'
+                            : 'Bugungi report kutilmoqda',
                         style: TextStyle(
                           fontSize: 11.5,
                           fontWeight: FontWeight.w800,
-                          color: attendanceDone
+                          color: reportSentToday
                               ? const Color(0xFF16934F)
                               : const Color(0xFFB45309),
                         ),

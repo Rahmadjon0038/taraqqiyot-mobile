@@ -2,30 +2,40 @@ import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 
 import '../../../app/theme/app_theme.dart';
+import '../../../core/navigation/app_route_observer.dart';
 import '../../auth/models/auth_session.dart';
 import '../../home/data/home_content_service.dart';
 import '../../home/presentation/widgets/home_news_carousel.dart';
 import '../../home/presentation/widgets/home_stories.dart';
 import '../data/teacher_service.dart';
+import 'teacher_payments_page.dart';
+import 'teacher_statistics_page.dart';
 import 'teacher_top_students_page.dart';
 
 /// Teacher bosh sahifasi: storislar, yangiliklar, to'lov statistikasi,
 /// ball bo'yicha eng yaxshi o'quvchilar va davomat ko'rsatkichlari.
 class TeacherDashboardPage extends StatefulWidget {
-  const TeacherDashboardPage({super.key, required this.session});
+  const TeacherDashboardPage({
+    super.key,
+    required this.session,
+    this.onOpenPayments,
+  });
 
   final AuthSession session;
+  final VoidCallback? onOpenPayments;
 
   @override
   State<TeacherDashboardPage> createState() => _TeacherDashboardPageState();
 }
 
-class _TeacherDashboardPageState extends State<TeacherDashboardPage> {
+class _TeacherDashboardPageState extends State<TeacherDashboardPage>
+    with RouteAware {
   final TeacherService _service = TeacherService();
   final HomeContentService _contentService = HomeContentService();
   late Future<_DashboardData> _dashboardFuture;
   late Future<HomeContent> _contentFuture;
   final Set<String> _seenStories = <String>{};
+  ModalRoute<dynamic>? _route;
 
   @override
   void initState() {
@@ -36,9 +46,25 @@ class _TeacherDashboardPageState extends State<TeacherDashboardPage> {
 
   @override
   void dispose() {
+    if (_route != null) {
+      appRouteObserver.unsubscribe(this);
+    }
     _service.dispose();
     _contentService.dispose();
     super.dispose();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final route = ModalRoute.of(context);
+    if (route is PageRoute && _route != route) {
+      if (_route != null) {
+        appRouteObserver.unsubscribe(this);
+      }
+      _route = route;
+      appRouteObserver.subscribe(this, route);
+    }
   }
 
   Future<_DashboardData> _loadDashboard() async {
@@ -55,8 +81,9 @@ class _TeacherDashboardPageState extends State<TeacherDashboardPage> {
     // Ball bo'yicha eng yaxshilar — har bir guruhdan guruh kattaligiga
     // qarab ajratiladi (3 tagacha -> 1 ta, 4-5 -> 2 ta, ko'p bo'lsa -> 3 ta)
     final groupTops = <GroupTopStudents>[];
+    List<TeacherGroup> groups = const <TeacherGroup>[];
     try {
-      final groups = await _service.fetchMyGroups(widget.session);
+      groups = await _service.fetchMyGroups(widget.session);
       final details = await Future.wait(
         groups.map(
           (group) => _service
@@ -76,6 +103,7 @@ class _TeacherDashboardPageState extends State<TeacherDashboardPage> {
     return _DashboardData(
       paymentSummary: payments.summary,
       snapshots: payments.snapshots,
+      groups: groups,
       groupTops: groupTops,
     );
   }
@@ -86,6 +114,11 @@ class _TeacherDashboardPageState extends State<TeacherDashboardPage> {
       _contentFuture = _contentService.fetchAll(widget.session);
     });
     await _dashboardFuture;
+  }
+
+  @override
+  void didPopNext() {
+    _reload();
   }
 
   @override
@@ -196,7 +229,45 @@ class _TeacherDashboardPageState extends State<TeacherDashboardPage> {
                 return Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    _PaymentStatsCard(summary: data.paymentSummary),
+                    TeacherDailyStatisticsCard(
+                      groups: data.groups,
+                      onOpen: () {
+                        Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (_) =>
+                                TeacherStatisticsPage(session: widget.session),
+                          ),
+                        );
+                      },
+                      onOpenGroup: (groupId) {
+                        Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (_) => TeacherStatisticsPage(
+                              session: widget.session,
+                              initialGroupId: groupId,
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                    const SizedBox(height: 12),
+                    _PaymentStatsCard(
+                      summary: data.paymentSummary,
+                      onTap: () {
+                        if (widget.onOpenPayments != null) {
+                          widget.onOpenPayments!.call();
+                          return;
+                        }
+
+                        Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (_) => TeacherPaymentsPage(
+                              session: widget.session,
+                            ),
+                          ),
+                        );
+                      },
+                    ),
                     const SizedBox(height: 12),
                     if (data.groupTops.any(
                       (groupTop) => groupTop.students.isNotEmpty,
@@ -231,19 +302,25 @@ class _DashboardData {
   const _DashboardData({
     required this.paymentSummary,
     required this.snapshots,
+    required this.groups,
     required this.groupTops,
   });
 
   final TeacherPaymentsSummary paymentSummary;
   final List<PaymentSnapshot> snapshots;
+  final List<TeacherGroup> groups;
   final List<GroupTopStudents> groupTops;
 }
 
 /// To'lov statistikasi — necha foiz o'quvchi to'lagan
 class _PaymentStatsCard extends StatelessWidget {
-  const _PaymentStatsCard({required this.summary});
+  const _PaymentStatsCard({
+    required this.summary,
+    required this.onTap,
+  });
 
   final TeacherPaymentsSummary summary;
+  final VoidCallback onTap;
 
   static const _paidColor = Colors.white;
   static const _partialColor = Color(0xFFFFC857);
@@ -255,165 +332,170 @@ class _PaymentStatsCard extends StatelessWidget {
     final paidRatio = total > 0 ? summary.paidStudents / total : 0.0;
     final percent = (paidRatio * 100).round();
 
-    return Container(
-      width: double.infinity,
-      clipBehavior: Clip.antiAlias,
-      decoration: BoxDecoration(
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
         borderRadius: BorderRadius.circular(20),
-        gradient: const LinearGradient(
-          colors: [Color(0xFF7C0A05), Color(0xFFA70E07), Color(0xFFD32F2F)],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-        boxShadow: const [
-          BoxShadow(
-            color: Color(0x22000000),
-            blurRadius: 18,
-            offset: Offset(0, 8),
-          ),
-        ],
-      ),
-      child: Stack(
-        children: [
-          Positioned(
-            right: -16,
-            bottom: -20,
-            child: Icon(
-              Icons.pie_chart_rounded,
-              size: 96,
-              color: Colors.white.withValues(alpha: 0.12),
+        child: Container(
+          width: double.infinity,
+          clipBehavior: Clip.antiAlias,
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(20),
+            gradient: const LinearGradient(
+              colors: [Color(0xFF7C0A05), Color(0xFFA70E07), Color(0xFFD32F2F)],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
             ),
+            boxShadow: const [
+              BoxShadow(
+                color: Color(0x22000000),
+                blurRadius: 18,
+                offset: Offset(0, 8),
+              ),
+            ],
           ),
-          Padding(
-            padding: const EdgeInsets.all(14),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
+          child: Stack(
+            children: [
+              Positioned(
+                right: -16,
+                bottom: -20,
+                child: Icon(
+                  Icons.pie_chart_rounded,
+                  size: 96,
+                  color: Colors.white.withValues(alpha: 0.12),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.all(14),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Container(
-                      padding: const EdgeInsets.all(6),
-                      decoration: BoxDecoration(
-                        color: Colors.white.withValues(alpha: 0.16),
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      child: const Icon(
-                        Icons.payments_rounded,
-                        color: Colors.white,
-                        size: 15,
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    const Expanded(
-                      child: Text(
-                        'Bu oy to\'lovlar',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 12.5,
-                          fontWeight: FontWeight.w800,
+                    Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(6),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withValues(alpha: 0.16),
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: const Icon(
+                            Icons.payments_rounded,
+                            color: Colors.white,
+                            size: 15,
+                          ),
                         ),
-                      ),
-                    ),
-                    _StatPill(label: 'Jami: $total'),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                Row(
-                  children: [
-                    // Donut chart — markazida to'laganlar foizi
-                    SizedBox(
-                      width: 96,
-                      height: 96,
-                      child: Stack(
-                        alignment: Alignment.center,
-                        children: [
-                          PieChart(
-                            PieChartData(
-                              sectionsSpace: 2,
-                              centerSpaceRadius: 30,
-                              startDegreeOffset: -90,
-                              sections: total == 0
-                                  ? [
-                                      PieChartSectionData(
-                                        value: 1,
-                                        color: _unpaidColor,
-                                        radius: 14,
-                                        showTitle: false,
-                                      ),
-                                    ]
-                                  : [
-                                      if (summary.paidStudents > 0)
-                                        PieChartSectionData(
-                                          value: summary.paidStudents
-                                              .toDouble(),
-                                          color: _paidColor,
-                                          radius: 16,
-                                          showTitle: false,
-                                        ),
-                                      if (summary.partialStudents > 0)
-                                        PieChartSectionData(
-                                          value: summary.partialStudents
-                                              .toDouble(),
-                                          color: _partialColor,
-                                          radius: 14,
-                                          showTitle: false,
-                                        ),
-                                      if (summary.unpaidStudents > 0)
-                                        PieChartSectionData(
-                                          value: summary.unpaidStudents
-                                              .toDouble(),
-                                          color: _unpaidColor,
-                                          radius: 14,
-                                          showTitle: false,
-                                        ),
-                                    ],
-                            ),
-                          ),
-                          Text(
-                            '$percent%',
-                            style: const TextStyle(
+                        const SizedBox(width: 8),
+                        const Expanded(
+                          child: Text(
+                            'Bu oy to\'lovlar',
+                            style: TextStyle(
                               color: Colors.white,
-                              fontSize: 17,
-                              fontWeight: FontWeight.w900,
+                              fontSize: 12.5,
+                              fontWeight: FontWeight.w800,
                             ),
                           ),
-                        ],
-                      ),
+                        ),
+                        _StatPill(label: 'Jami: $total'),
+                      ],
                     ),
-                    const SizedBox(width: 14),
-                    // Legend
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          _LegendRow(
-                            color: _paidColor,
-                            label: 'To\'lagan',
-                            value: summary.paidStudents,
+                    const SizedBox(height: 12),
+                    Row(
+                      children: [
+                        SizedBox(
+                          width: 96,
+                          height: 96,
+                          child: Stack(
+                            alignment: Alignment.center,
+                            children: [
+                              PieChart(
+                                PieChartData(
+                                  sectionsSpace: 2,
+                                  centerSpaceRadius: 30,
+                                  startDegreeOffset: -90,
+                                  sections: total == 0
+                                      ? [
+                                          PieChartSectionData(
+                                            value: 1,
+                                            color: _unpaidColor,
+                                            radius: 14,
+                                            showTitle: false,
+                                          ),
+                                        ]
+                                      : [
+                                          if (summary.paidStudents > 0)
+                                            PieChartSectionData(
+                                              value: summary.paidStudents
+                                                  .toDouble(),
+                                              color: _paidColor,
+                                              radius: 16,
+                                              showTitle: false,
+                                            ),
+                                          if (summary.partialStudents > 0)
+                                            PieChartSectionData(
+                                              value: summary.partialStudents
+                                                  .toDouble(),
+                                              color: _partialColor,
+                                              radius: 14,
+                                              showTitle: false,
+                                            ),
+                                          if (summary.unpaidStudents > 0)
+                                            PieChartSectionData(
+                                              value: summary.unpaidStudents
+                                                  .toDouble(),
+                                              color: _unpaidColor,
+                                              radius: 14,
+                                              showTitle: false,
+                                            ),
+                                        ],
+                                ),
+                              ),
+                              Text(
+                                '$percent%',
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 17,
+                                  fontWeight: FontWeight.w900,
+                                ),
+                              ),
+                            ],
                           ),
-                          if (summary.partialStudents > 0) ...[
-                            const SizedBox(height: 6),
-                            _LegendRow(
-                              color: _partialColor,
-                              label: 'Qisman',
-                              value: summary.partialStudents,
-                            ),
-                          ],
-                          const SizedBox(height: 6),
-                          _LegendRow(
-                            color: _unpaidColor,
-                            label: 'To\'lamagan',
-                            value: summary.unpaidStudents,
+                        ),
+                        const SizedBox(width: 14),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              _LegendRow(
+                                color: _paidColor,
+                                label: 'To\'lagan',
+                                value: summary.paidStudents,
+                              ),
+                              if (summary.partialStudents > 0) ...[
+                                const SizedBox(height: 6),
+                                _LegendRow(
+                                  color: _partialColor,
+                                  label: 'Qisman',
+                                  value: summary.partialStudents,
+                                ),
+                              ],
+                              const SizedBox(height: 6),
+                              _LegendRow(
+                                color: _unpaidColor,
+                                label: 'To\'lamagan',
+                                value: summary.unpaidStudents,
+                              ),
+                            ],
                           ),
-                        ],
-                      ),
+                        ),
+                      ],
                     ),
                   ],
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
-        ],
+        ),
       ),
     );
   }

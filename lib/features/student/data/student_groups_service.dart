@@ -16,7 +16,8 @@ class StudentGroupsException implements Exception {
 }
 
 class StudentGroupsService {
-  StudentGroupsService({http.Client? client}) : _client = client ?? http.Client();
+  StudentGroupsService({http.Client? client})
+    : _client = client ?? http.Client();
 
   final http.Client _client;
   static const Duration _timeout = Duration(seconds: 12);
@@ -49,7 +50,10 @@ class StudentGroupsService {
 
     return groups
         .whereType<Map>()
-        .map((group) => StudentGroupSummary.fromJson(Map<String, dynamic>.from(group)))
+        .map(
+          (group) =>
+              StudentGroupSummary.fromJson(Map<String, dynamic>.from(group)),
+        )
         .toList();
   }
 
@@ -63,10 +67,7 @@ class StudentGroupsService {
       uri = uri.replace(queryParameters: {'month': month.trim()});
     }
     final response = await _client
-        .get(
-          uri,
-          headers: {'Authorization': 'Bearer ${session.accessToken}'},
-        )
+        .get(uri, headers: {'Authorization': 'Bearer ${session.accessToken}'})
         .timeout(_timeout);
 
     final payload = _decodeResponse(response);
@@ -105,7 +106,9 @@ class StudentGroupsService {
 
     final response = await _client
         .get(
-          _uri('/api/students/my-point-reports').replace(queryParameters: params),
+          _uri(
+            '/api/students/my-point-reports',
+          ).replace(queryParameters: params),
           headers: {'Authorization': 'Bearer ${session.accessToken}'},
         )
         .timeout(_timeout);
@@ -217,6 +220,7 @@ class StudentGroupSummary {
     required this.lastDayPoints,
     required this.scheduleDays,
     required this.scheduleTime,
+    required this.availableMonths,
   });
 
   final int groupId;
@@ -251,6 +255,9 @@ class StudentGroupSummary {
   /// Dars vaqti, masalan "14:00-16:00" (bo'lmasa bo'sh)
   final String scheduleTime;
 
+  /// Backenddan keladigan oylar ro'yxati (YYYY-MM)
+  final List<String> availableMonths;
+
   /// Oylik o'zlashtirish foizi — guruhdagi eng yuqori balga nisbatan (lider 100%)
   double get masteryPercent {
     if (groupMaxPoints <= 0 || monthlyPoints <= 0) return 0;
@@ -263,11 +270,21 @@ class StudentGroupSummary {
   bool get isFinished => myStatus == 'finished';
 
   factory StudentGroupSummary.fromJson(Map<String, dynamic> json) {
-    final groupInfo = Map<String, dynamic>.from(json['group_info'] as Map? ?? const {});
-    final subjectInfo = Map<String, dynamic>.from(json['subject_info'] as Map? ?? const {});
-    final teacherInfo = Map<String, dynamic>.from(json['teacher_info'] as Map? ?? const {});
-    final roomInfo = Map<String, dynamic>.from(json['room_info'] as Map? ?? const {});
-    final myStatus = Map<String, dynamic>.from(json['my_status'] as Map? ?? const {});
+    final groupInfo = Map<String, dynamic>.from(
+      json['group_info'] as Map? ?? const {},
+    );
+    final subjectInfo = Map<String, dynamic>.from(
+      json['subject_info'] as Map? ?? const {},
+    );
+    final teacherInfo = Map<String, dynamic>.from(
+      json['teacher_info'] as Map? ?? const {},
+    );
+    final roomInfo = Map<String, dynamic>.from(
+      json['room_info'] as Map? ?? const {},
+    );
+    final myStatus = Map<String, dynamic>.from(
+      json['my_status'] as Map? ?? const {},
+    );
 
     return StudentGroupSummary(
       groupId: _asInt(groupInfo['id']),
@@ -293,6 +310,7 @@ class StudentGroupSummary {
       lastDayPoints: _asInt(groupInfo['last_day_points']),
       scheduleDays: _parseScheduleDays(groupInfo['schedule']),
       scheduleTime: _parseScheduleTime(groupInfo['schedule']),
+      availableMonths: _parseMonthList(groupInfo['available_months']),
     );
   }
 
@@ -310,6 +328,14 @@ class StudentGroupSummary {
     if (schedule is! Map) return '';
     return schedule['time']?.toString().trim() ?? '';
   }
+
+  static List<String> _parseMonthList(Object? value) {
+    if (value is! List) return const [];
+    return value
+        .map((item) => item.toString().trim())
+        .where((item) => RegExp(r'^\d{4}-\d{2}$').hasMatch(item))
+        .toList();
+  }
 }
 
 class StudentGroupDetails {
@@ -323,6 +349,7 @@ class StudentGroupDetails {
     required this.startDate,
     required this.createdDate,
     required this.studentJoinedDate,
+    required this.studentLeftDate,
     required this.subjectName,
     required this.teacherName,
     required this.teacherPhone,
@@ -332,8 +359,10 @@ class StudentGroupDetails {
     required this.monthlyRank,
     required this.groupmates,
     required this.currentUserStatus,
+    required this.lessonReports,
     required this.scheduleDays,
     required this.scheduleTime,
+    required this.availableMonths,
   });
 
   final int groupId;
@@ -345,6 +374,7 @@ class StudentGroupDetails {
   final String startDate;
   final String createdDate;
   final String studentJoinedDate;
+  final String studentLeftDate;
   final String subjectName;
   final String teacherName;
   final String teacherPhone;
@@ -354,26 +384,52 @@ class StudentGroupDetails {
   final int monthlyRank;
   final List<StudentGroupMate> groupmates;
   final StudentGroupMate? currentUserStatus;
+  final List<StudentLessonReport> lessonReports;
 
   /// Dars kunlari va vaqti (group_details.schedule dan)
   final List<String> scheduleDays;
   final String scheduleTime;
 
+  /// Backenddan keladigan oylar ro'yxati (YYYY-MM)
+  final List<String> availableMonths;
+
   factory StudentGroupDetails.fromJson(
     Map<String, dynamic> json, {
     required int currentUserId,
   }) {
-    final groupDetails = Map<String, dynamic>.from(json['group_details'] as Map? ?? const {});
-    final subject = Map<String, dynamic>.from(json['subject'] as Map? ?? const {});
-    final teacher = Map<String, dynamic>.from(json['teacher'] as Map? ?? const {});
-    final statistics = Map<String, dynamic>.from(json['group_statistics'] as Map? ?? const {});
+    final groupDetails = Map<String, dynamic>.from(
+      json['group_details'] as Map? ?? const {},
+    );
+    final subject = Map<String, dynamic>.from(
+      json['subject'] as Map? ?? const {},
+    );
+    final teacher = Map<String, dynamic>.from(
+      json['teacher'] as Map? ?? const {},
+    );
+    final statistics = Map<String, dynamic>.from(
+      json['group_statistics'] as Map? ?? const {},
+    );
+    final lessonReportsRaw = json['lesson_reports'];
     final groupmatesRaw = json['groupmates'];
     final groupmates = groupmatesRaw is List
         ? groupmatesRaw
-            .whereType<Map>()
-            .map((mate) => StudentGroupMate.fromJson(Map<String, dynamic>.from(mate)))
-            .toList()
+              .whereType<Map>()
+              .map(
+                (mate) =>
+                    StudentGroupMate.fromJson(Map<String, dynamic>.from(mate)),
+              )
+              .toList()
         : <StudentGroupMate>[];
+    final lessonReports = lessonReportsRaw is List
+        ? lessonReportsRaw
+              .whereType<Map>()
+              .map(
+                (report) => StudentLessonReport.fromJson(
+                  Map<String, dynamic>.from(report),
+                ),
+              )
+              .toList()
+        : <StudentLessonReport>[];
 
     StudentGroupMate? currentUserStatus;
     for (final mate in groupmates) {
@@ -398,7 +454,12 @@ class StudentGroupDetails {
             groupDetails['student_joined_date'],
       ),
       studentJoinedDate: _asString(
-        groupDetails['student_joined_date'] ?? groupDetails['studentJoinedDate'],
+        groupDetails['student_joined_date'] ??
+            groupDetails['studentJoinedDate'],
+      ),
+      studentLeftDate: _asString(
+        groupDetails['student_left_date'] ??
+            groupDetails['studentLeftDate'],
       ),
       subjectName: _asString(subject['name']),
       teacherName: _asString(teacher['name']),
@@ -406,14 +467,22 @@ class StudentGroupDetails {
       totalMembers: _asInt(statistics['total_members']),
       activeMembers: _asInt(statistics['active_members']),
       monthlyPoints: _asInt(statistics['monthly_points']),
-      monthlyRank: _asInt(json['my_rating'] is Map ? (json['my_rating'] as Map)['rank_in_group'] : 0),
+      monthlyRank: _asInt(
+        json['my_rating'] is Map
+            ? (json['my_rating'] as Map)['rank_in_group']
+            : 0,
+      ),
       groupmates: groupmates,
       currentUserStatus: currentUserStatus,
+      lessonReports: lessonReports,
       scheduleDays: StudentGroupSummary._parseScheduleDays(
         groupDetails['schedule'],
       ),
       scheduleTime: StudentGroupSummary._parseScheduleTime(
         groupDetails['schedule'],
+      ),
+      availableMonths: StudentGroupSummary._parseMonthList(
+        groupDetails['available_months'],
       ),
     );
   }
@@ -448,7 +517,8 @@ class StudentGroupMate {
   final int monthlyPoints;
   final int rankInGroup;
 
-  String get displayName => [surname, name].where((part) => part.trim().isNotEmpty).join(' ');
+  String get displayName =>
+      [surname, name].where((part) => part.trim().isNotEmpty).join(' ');
 
   factory StudentGroupMate.fromJson(Map<String, dynamic> json) {
     return StudentGroupMate(
@@ -458,7 +528,10 @@ class StudentGroupMate {
       phone: _asString(json['phone']),
       avatarKey: _asString(json['avatar_key'] ?? json['avatarKey']),
       avatarUrl: _asString(
-        json['avatar_url'] ?? json['avatarUrl'] ?? json['image_url'] ?? json['imageUrl'],
+        json['avatar_url'] ??
+            json['avatarUrl'] ??
+            json['image_url'] ??
+            json['imageUrl'],
       ),
       status: _asString(json['status']),
       statusDescription: _asString(json['status_description']),
@@ -466,6 +539,125 @@ class StudentGroupMate {
       leaveDate: _asString(json['leave_date']),
       monthlyPoints: _asInt(json['monthly_points']),
       rankInGroup: _asInt(json['rank_in_group']),
+    );
+  }
+}
+
+class StudentLessonReport {
+  const StudentLessonReport({
+    required this.id,
+    required this.lessonId,
+    required this.groupId,
+    required this.teacherId,
+    required this.subjectName,
+    required this.groupName,
+    required this.teacherName,
+    required this.lessonDate,
+    required this.lessonStartTime,
+    required this.lessonEndTime,
+    required this.homework,
+    required this.vocabulary,
+    required this.attendance,
+    required this.participation,
+    required this.total,
+    required this.percent,
+    required this.feedback,
+    required this.createdAtLabel,
+    required this.updatedAtLabel,
+    required this.rows,
+  });
+
+  final int id;
+  final int lessonId;
+  final int groupId;
+  final int? teacherId;
+  final String subjectName;
+  final String groupName;
+  final String teacherName;
+  final String lessonDate;
+  final String lessonStartTime;
+  final String lessonEndTime;
+  final int homework;
+  final int vocabulary;
+  final int attendance;
+  final int participation;
+  final int total;
+  final int percent;
+  final String feedback;
+  final String createdAtLabel;
+  final String updatedAtLabel;
+  final List<StudentLessonReportRow> rows;
+
+  factory StudentLessonReport.fromJson(Map<String, dynamic> json) {
+    final rowsRaw = json['rows'];
+    return StudentLessonReport(
+      id: _asInt(json['id']),
+      lessonId: _asInt(json['lesson_id']),
+      groupId: _asInt(json['group_id']),
+      teacherId: json['teacher_id'] == null ? null : _asInt(json['teacher_id']),
+      subjectName: _asString(json['subject_name']),
+      groupName: _asString(json['group_name']),
+      teacherName: _asString(json['teacher_name']),
+      lessonDate: _asString(json['lesson_date']),
+      lessonStartTime: _asString(json['lesson_start_time']),
+      lessonEndTime: _asString(json['lesson_end_time']),
+      homework: _asInt(json['homework']),
+      vocabulary: _asInt(json['vocabulary']),
+      attendance: _asInt(json['attendance']),
+      participation: _asInt(json['participation']),
+      total: _asInt(json['total']),
+      percent: _asInt(json['percent']),
+      feedback: _asString(json['feedback']),
+      createdAtLabel: _asString(json['created_at_label']),
+      updatedAtLabel: _asString(json['updated_at_label']),
+      rows: rowsRaw is List
+          ? rowsRaw
+                .whereType<Map>()
+                .map(
+                  (row) => StudentLessonReportRow.fromJson(
+                    Map<String, dynamic>.from(row),
+                  ),
+                )
+                .toList()
+          : const <StudentLessonReportRow>[],
+    );
+  }
+}
+
+class StudentLessonReportRow {
+  const StudentLessonReportRow({
+    required this.studentId,
+    required this.studentName,
+    required this.homework,
+    required this.vocabulary,
+    required this.attendance,
+    required this.participation,
+    required this.total,
+    required this.percent,
+    required this.feedback,
+  });
+
+  final int studentId;
+  final String studentName;
+  final int homework;
+  final int vocabulary;
+  final int attendance;
+  final int participation;
+  final int total;
+  final int percent;
+  final String feedback;
+
+  factory StudentLessonReportRow.fromJson(Map<String, dynamic> json) {
+    return StudentLessonReportRow(
+      studentId: _asInt(json['student_id']),
+      studentName: _asString(json['student_name']),
+      homework: _asInt(json['homework']),
+      vocabulary: _asInt(json['vocabulary']),
+      attendance: _asInt(json['attendance']),
+      participation: _asInt(json['participation']),
+      total: _asInt(json['total']),
+      percent: _asInt(json['percent']),
+      feedback: _asString(json['feedback']),
     );
   }
 }
@@ -495,7 +687,9 @@ class StudentPointReportsData {
   final List<StudentPointEvent> events;
 
   factory StudentPointReportsData.fromJson(Map<String, dynamic> json) {
-    final summary = Map<String, dynamic>.from(json['summary'] as Map? ?? const {});
+    final summary = Map<String, dynamic>.from(
+      json['summary'] as Map? ?? const {},
+    );
     final breakdownRaw = json['breakdown'];
     final monthlyBreakdownRaw = json['monthly_breakdown'];
     final teacherBreakdownRaw = json['teacher_breakdown'];
@@ -507,33 +701,53 @@ class StudentPointReportsData {
       summary: StudentPointSummary.fromJson(summary),
       breakdown: breakdownRaw is List
           ? breakdownRaw
-              .whereType<Map>()
-              .map((item) => StudentPointBreakdown.fromJson(Map<String, dynamic>.from(item)))
-              .toList()
+                .whereType<Map>()
+                .map(
+                  (item) => StudentPointBreakdown.fromJson(
+                    Map<String, dynamic>.from(item),
+                  ),
+                )
+                .toList()
           : const <StudentPointBreakdown>[],
       monthlyBreakdown: monthlyBreakdownRaw is List
           ? monthlyBreakdownRaw
-              .whereType<Map>()
-              .map((item) => StudentPointMonthlyBreakdown.fromJson(Map<String, dynamic>.from(item)))
-              .toList()
+                .whereType<Map>()
+                .map(
+                  (item) => StudentPointMonthlyBreakdown.fromJson(
+                    Map<String, dynamic>.from(item),
+                  ),
+                )
+                .toList()
           : const <StudentPointMonthlyBreakdown>[],
       teacherBreakdown: teacherBreakdownRaw is List
           ? teacherBreakdownRaw
-              .whereType<Map>()
-              .map((item) => StudentPointTeacherBreakdown.fromJson(Map<String, dynamic>.from(item)))
-              .toList()
+                .whereType<Map>()
+                .map(
+                  (item) => StudentPointTeacherBreakdown.fromJson(
+                    Map<String, dynamic>.from(item),
+                  ),
+                )
+                .toList()
           : const <StudentPointTeacherBreakdown>[],
       dailyBreakdown: dailyBreakdownRaw is List
           ? dailyBreakdownRaw
-              .whereType<Map>()
-              .map((item) => StudentPointDailyBreakdown.fromJson(Map<String, dynamic>.from(item)))
-              .toList()
+                .whereType<Map>()
+                .map(
+                  (item) => StudentPointDailyBreakdown.fromJson(
+                    Map<String, dynamic>.from(item),
+                  ),
+                )
+                .toList()
           : const <StudentPointDailyBreakdown>[],
       events: eventsRaw is List
           ? eventsRaw
-              .whereType<Map>()
-              .map((item) => StudentPointEvent.fromJson(Map<String, dynamic>.from(item)))
-              .toList()
+                .whereType<Map>()
+                .map(
+                  (item) => StudentPointEvent.fromJson(
+                    Map<String, dynamic>.from(item),
+                  ),
+                )
+                .toList()
           : const <StudentPointEvent>[],
     );
   }

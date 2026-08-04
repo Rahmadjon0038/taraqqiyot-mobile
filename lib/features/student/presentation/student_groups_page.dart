@@ -106,12 +106,12 @@ class _StudentGroupCard extends StatelessWidget {
       color: Colors.transparent,
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(16),
         child: Container(
           clipBehavior: Clip.antiAlias,
           decoration: BoxDecoration(
             color: Colors.white,
-            borderRadius: BorderRadius.circular(20),
+            borderRadius: BorderRadius.circular(16),
             border: Border.all(color: const Color(0xFFE4E9F1)),
             boxShadow: const [
               BoxShadow(
@@ -156,7 +156,7 @@ class _StudentGroupCard extends StatelessWidget {
                               begin: Alignment.topLeft,
                               end: Alignment.bottomRight,
                             ),
-                            borderRadius: BorderRadius.circular(13),
+                            borderRadius: BorderRadius.circular(16),
                           ),
                           child: const Icon(
                             Icons.school_rounded,
@@ -257,8 +257,6 @@ class _StudentGroupCard extends StatelessWidget {
                         color: AppTheme.brandColor,
                       ),
                     ],
-                    const SizedBox(height: 12),
-                    _MasteryProgressBar(percent: group.masteryPercent),
                   ],
                 ),
               ),
@@ -290,7 +288,7 @@ class _StatChip extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
       decoration: BoxDecoration(
         color: background,
-        borderRadius: BorderRadius.circular(999),
+        borderRadius: BorderRadius.circular(16),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -305,85 +303,6 @@ class _StatChip extends StatelessWidget {
               fontSize: 10.5,
               fontWeight: FontWeight.w800,
               color: foreground,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-/// Bir oylik o'zlashtirish ko'rsatkichi — brend qizil rangdagi progress bar
-class _MasteryProgressBar extends StatelessWidget {
-  const _MasteryProgressBar({required this.percent});
-
-  /// 0..100 oralig'idagi foiz
-  final double percent;
-
-  @override
-  Widget build(BuildContext context) {
-    final clamped = percent.clamp(0, 100).toDouble();
-    final label = '${clamped.round()}%';
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-      decoration: BoxDecoration(
-        color: const Color(0xFFF8F4F4),
-        borderRadius: BorderRadius.circular(14),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              const Icon(
-                Icons.insights_rounded,
-                size: 14,
-                color: AppTheme.brandColor,
-              ),
-              const SizedBox(width: 6),
-              const Expanded(
-                child: Text(
-                  'O\'zlashtirish',
-                  style: TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w700,
-                    color: Color(0xFF7B8495),
-                  ),
-                ),
-              ),
-              Text(
-                label,
-                style: const TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w900,
-                  color: AppTheme.brandColor,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          ClipRRect(
-            borderRadius: BorderRadius.circular(999),
-            child: SizedBox(
-              height: 7,
-              width: double.infinity,
-              child: Stack(
-                children: [
-                  Container(color: const Color(0xFFE9E2E1)),
-                  FractionallySizedBox(
-                    widthFactor: clamped / 100,
-                    child: Container(
-                      decoration: const BoxDecoration(
-                        gradient: LinearGradient(
-                          colors: [Color(0xFFD32F2F), Color(0xFF7C0A05)],
-                        ),
-                        borderRadius: BorderRadius.all(Radius.circular(999)),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
             ),
           ),
         ],
@@ -409,7 +328,7 @@ class _MiniPill extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
       decoration: BoxDecoration(
         color: background,
-        borderRadius: BorderRadius.circular(999),
+        borderRadius: BorderRadius.circular(16),
       ),
       child: Text(
         label,
@@ -483,7 +402,7 @@ class _LoadingCard extends StatelessWidget {
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(16),
         border: Border.all(color: const Color(0xFFE8EDF4)),
       ),
       child: Column(
@@ -520,7 +439,7 @@ class _SkeletonBox extends StatelessWidget {
       height: height,
       decoration: BoxDecoration(
         color: const Color(0xFFE9EDF3),
-        borderRadius: BorderRadius.circular(radius),
+        borderRadius: BorderRadius.circular(16),
       ),
     );
   }
@@ -538,7 +457,7 @@ class _ErrorState extends StatelessWidget {
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(24),
+        borderRadius: BorderRadius.circular(16),
         border: Border.all(color: const Color(0xFFFFD2CF)),
       ),
       child: Column(
@@ -582,7 +501,7 @@ class _EmptyState extends StatelessWidget {
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(24),
+        borderRadius: BorderRadius.circular(16),
         border: Border.all(color: const Color(0xFFE5EAF2)),
       ),
       child: const Column(

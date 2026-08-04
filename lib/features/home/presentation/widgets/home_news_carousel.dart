@@ -131,7 +131,7 @@ class _HomeNewsCarouselState extends State<HomeNewsCarousel> {
                     color: i == _currentPage
                         ? const Color(0xFFA70E07)
                         : const Color(0xFFC9D0DC),
-                    borderRadius: BorderRadius.circular(999),
+                    borderRadius: BorderRadius.circular(8),
                   ),
                 ),
               ],
@@ -156,7 +156,7 @@ class _NewsCard extends StatelessWidget {
       child: Container(
         clipBehavior: Clip.antiAlias,
         decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(20),
+          borderRadius: BorderRadius.circular(24),
           gradient: const LinearGradient(
             colors: [Color(0xFF7F1D1D), Color(0xFFA70E07), Color(0xFFDC2626)],
             begin: Alignment.topLeft,
@@ -243,14 +243,14 @@ class _NewsCardContent extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // Oq fondagi qizil qo'ng'iroqli teg — rasmdagi dizayn
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(999),
-          ),
-          child: Row(
+          // Oq fondagi qizil qo'ng'iroqli teg — rasmdagi dizayn
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
               const Icon(

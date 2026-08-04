@@ -184,6 +184,9 @@ class _StudentAttendancePageState extends State<StudentAttendancePage> {
 
   String _groupStartMonthKey(int? groupId) {
     final group = _groupById(groupId);
+    if (group?.availableMonths.isNotEmpty == true) {
+      return group!.availableMonths.last;
+    }
     final parsed = group == null
         ? null
         : _parseMonthFromDateText(group.myJoinDate);
@@ -193,6 +196,9 @@ class _StudentAttendancePageState extends State<StudentAttendancePage> {
   List<String> _availableMonthsForGroup(StudentGroupSummary? group) {
     if (group == null) {
       return <String>[_currentMonthKey()];
+    }
+    if (group.availableMonths.isNotEmpty) {
+      return group.availableMonths;
     }
     return _monthsDescending(startMonthKey: _groupStartMonthKey(group.groupId));
   }
@@ -503,7 +509,7 @@ class _AttendanceHeroCard extends StatelessWidget {
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(24),
+        borderRadius: BorderRadius.circular(16),
         border: Border.all(color: const Color(0xFFE4E9F1)),
         boxShadow: const [
           BoxShadow(
@@ -520,7 +526,7 @@ class _AttendanceHeroCard extends StatelessWidget {
             height: 44,
             decoration: BoxDecoration(
               color: const Color(0xFFFEE2E2),
-              borderRadius: BorderRadius.circular(14),
+              borderRadius: BorderRadius.circular(16),
             ),
             child: const Icon(
               Icons.event_note_rounded,
@@ -584,14 +590,14 @@ class _MonthSelect extends StatelessWidget {
           final selected = month == selectedMonth;
           return InkWell(
             onTap: () => onSelected(month),
-            borderRadius: BorderRadius.circular(999),
+            borderRadius: BorderRadius.circular(16),
             child: AnimatedContainer(
               duration: const Duration(milliseconds: 180),
               padding: const EdgeInsets.symmetric(horizontal: 14),
               alignment: Alignment.center,
               decoration: BoxDecoration(
                 color: selected ? AppTheme.brandColor : Colors.white,
-                borderRadius: BorderRadius.circular(999),
+                borderRadius: BorderRadius.circular(16),
                 border: Border.all(
                   color: selected
                       ? AppTheme.brandColor
@@ -638,13 +644,13 @@ class _GroupChips extends StatelessWidget {
           final selected = group.groupId == selectedGroupId;
           return InkWell(
             onTap: () => onSelected(group.groupId),
-            borderRadius: BorderRadius.circular(999),
+            borderRadius: BorderRadius.circular(16),
             child: AnimatedContainer(
               duration: const Duration(milliseconds: 180),
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
               decoration: BoxDecoration(
                 color: selected ? AppTheme.brandColor : Colors.white,
-                borderRadius: BorderRadius.circular(999),
+                borderRadius: BorderRadius.circular(16),
                 border: Border.all(
                   color: selected
                       ? AppTheme.brandColor
@@ -678,7 +684,7 @@ class _SelectedGroupSummaryCard extends StatelessWidget {
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(22),
+        borderRadius: BorderRadius.circular(16),
         border: Border.all(color: const Color(0xFFE4E9F1)),
       ),
       child: Row(
@@ -825,7 +831,7 @@ class _AttendanceLessonCard extends StatelessWidget {
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(16),
         border: Border.all(color: const Color(0xFFE4E9F1)),
       ),
       child: Row(
@@ -835,7 +841,7 @@ class _AttendanceLessonCard extends StatelessWidget {
             height: 42,
             decoration: BoxDecoration(
               color: statusColor.withAlpha((0.12 * 255).round()),
-              borderRadius: BorderRadius.circular(14),
+              borderRadius: BorderRadius.circular(16),
             ),
             child: Icon(icon, color: statusColor, size: 22),
           ),
@@ -887,7 +893,7 @@ class _AttendanceDetailHeroCard extends StatelessWidget {
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(24),
+        borderRadius: BorderRadius.circular(16),
         border: Border.all(color: const Color(0xFFE4E9F1)),
         boxShadow: const [
           BoxShadow(
@@ -1069,7 +1075,7 @@ class _AttendanceTable extends StatelessWidget {
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(22),
+        borderRadius: BorderRadius.circular(16),
         border: Border.all(color: const Color(0xFFE4E9F1)),
       ),
       child: Column(
@@ -1198,7 +1204,7 @@ class _AttendanceLoadingSkeleton extends StatelessWidget {
           height: 144,
           decoration: BoxDecoration(
             color: Colors.white,
-            borderRadius: BorderRadius.circular(24),
+            borderRadius: BorderRadius.circular(16),
             border: Border.all(color: const Color(0xFFE4E9F1)),
           ),
           child: const SizedBox.expand(child: _ShimmerLine()),
@@ -1220,7 +1226,7 @@ class _AttendanceErrorState extends StatelessWidget {
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(22),
+        borderRadius: BorderRadius.circular(16),
         border: Border.all(color: const Color(0xFFFCA5A5)),
       ),
       child: Column(
@@ -1243,7 +1249,7 @@ class _AttendanceErrorState extends StatelessWidget {
                 backgroundColor: AppTheme.brandColor,
                 foregroundColor: Colors.white,
                 shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(14),
+                  borderRadius: BorderRadius.circular(16),
                 ),
               ),
               child: const Text('Qayta urinish'),
@@ -1266,7 +1272,7 @@ class _AttendanceErrorCard extends StatelessWidget {
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(22),
+        borderRadius: BorderRadius.circular(16),
         border: Border.all(color: const Color(0xFFFECACA)),
       ),
       child: Text(
@@ -1290,7 +1296,7 @@ class _AttendanceEmptyState extends StatelessWidget {
       padding: const EdgeInsets.all(22),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(22),
+        borderRadius: BorderRadius.circular(16),
         border: Border.all(color: const Color(0xFFE4E9F1)),
       ),
       child: const Column(
@@ -1329,7 +1335,7 @@ class _SummaryCard extends StatelessWidget {
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: BorderRadius.circular(16),
         border: Border.all(color: const Color(0xFFE4E9F1)),
       ),
       child: Column(
@@ -1384,7 +1390,7 @@ class _GroupBadge extends StatelessWidget {
       width: size,
       height: size,
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(size * 0.32),
+        borderRadius: BorderRadius.circular(16),
         gradient: const LinearGradient(
           colors: [Color(0xFF6B5CF6), Color(0xFF4A7BFF)],
           begin: Alignment.topLeft,
@@ -1421,7 +1427,7 @@ class _MiniPill extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
         color: background,
-        borderRadius: BorderRadius.circular(999),
+        borderRadius: BorderRadius.circular(16),
       ),
       child: Text(
         label,

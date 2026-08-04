@@ -318,7 +318,7 @@ class StoryViewerPageState extends State<StoryViewerPage> {
     VideoPlayerController? controller,
   ) {
     const double barHeight = 3;
-    final BorderRadius radius = BorderRadius.circular(2);
+    final BorderRadius radius = BorderRadius.circular(8);
     final Color trackColor = Colors.white.withValues(alpha: 0.28);
 
     // Ko'rib bo'lingan storislar to'liq oq, keyingilari xira chiziq
@@ -743,7 +743,7 @@ class _StoryControlsBar extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: 8),
           decoration: BoxDecoration(
             color: Colors.black.withValues(alpha: 0.55),
-            borderRadius: BorderRadius.circular(26),
+            borderRadius: BorderRadius.circular(8),
           ),
           child: Row(
             children: [

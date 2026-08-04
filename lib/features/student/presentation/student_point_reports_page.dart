@@ -19,13 +19,15 @@ class StudentPointReportsPage extends StatefulWidget {
   final String? initialMonth;
 
   @override
-  State<StudentPointReportsPage> createState() => _StudentPointReportsPageState();
+  State<StudentPointReportsPage> createState() =>
+      _StudentPointReportsPageState();
 }
 
 class _StudentPointReportsPageState extends State<StudentPointReportsPage> {
   final StudentGroupsService _service = StudentGroupsService();
   late Future<List<StudentGroupSummary>> _groupsFuture;
   Future<StudentPointReportsData>? _reportsFuture;
+  Future<StudentGroupDetails>? _lessonReportsFuture;
   int? _selectedGroupId;
   late String _selectedMonth;
 
@@ -34,7 +36,8 @@ class _StudentPointReportsPageState extends State<StudentPointReportsPage> {
     super.initState();
     final initialMonth = widget.initialMonth?.trim();
     _selectedMonth =
-        (initialMonth != null && RegExp(r'^\d{4}-\d{2}$').hasMatch(initialMonth))
+        (initialMonth != null &&
+            RegExp(r'^\d{4}-\d{2}$').hasMatch(initialMonth))
         ? initialMonth
         : _currentMonthKey();
     _groupsFuture = _service.fetchMyGroups(widget.session);
@@ -57,19 +60,33 @@ class _StudentPointReportsPageState extends State<StudentPointReportsPage> {
       setState(() {
         _selectedGroupId = null;
         _reportsFuture = null;
+        _lessonReportsFuture = null;
       });
       return;
     }
     final selected = groups.any((group) => group.groupId == _selectedGroupId)
         ? _selectedGroupId
         : groups.first.groupId;
+    final selectedGroup = groups.firstWhere(
+      (group) => group.groupId == selected,
+      orElse: () => groups.first,
+    );
+    final validMonth = _monthForGroup(selectedGroup, preferred: _selectedMonth);
     setState(() {
       _selectedGroupId = selected;
+      _selectedMonth = validMonth;
       _reportsFuture = _service.fetchMyPointReports(
         widget.session,
-        month: _selectedMonth,
+        month: validMonth,
         groupId: _selectedGroupId,
       );
+      _lessonReportsFuture = selected == null
+          ? null
+          : _service.fetchMyGroupInfo(
+              widget.session,
+              selected,
+              month: validMonth,
+            );
     });
     final reportsFuture = _reportsFuture;
     if (reportsFuture != null) {
@@ -84,6 +101,7 @@ class _StudentPointReportsPageState extends State<StudentPointReportsPage> {
       if (groups.isEmpty) {
         setState(() {
           _reportsFuture = null;
+          _lessonReportsFuture = null;
         });
         return;
       }
@@ -91,34 +109,54 @@ class _StudentPointReportsPageState extends State<StudentPointReportsPage> {
       final selected = groups.any((group) => group.groupId == initialGroup)
           ? initialGroup
           : groups.first.groupId;
+      final selectedGroup = groups.firstWhere(
+        (group) => group.groupId == selected,
+        orElse: () => groups.first,
+      );
+      final validMonth = _monthForGroup(
+        selectedGroup,
+        preferred: _selectedMonth,
+      );
       setState(() {
         _selectedGroupId = selected;
+        _selectedMonth = validMonth;
         _reportsFuture = _service.fetchMyPointReports(
           widget.session,
-          month: _selectedMonth,
+          month: validMonth,
           groupId: _selectedGroupId,
         );
+        _lessonReportsFuture = selected == null
+            ? null
+            : _service.fetchMyGroupInfo(
+                widget.session,
+                selected,
+                month: validMonth,
+              );
       });
     } catch (_) {
       if (!mounted) return;
       setState(() {
         _reportsFuture = null;
+        _lessonReportsFuture = null;
       });
     }
   }
 
   void _selectGroup(StudentGroupSummary group) {
     if (_selectedGroupId == group.groupId) return;
+    final validMonth = _monthForGroup(group, preferred: _selectedMonth);
     setState(() {
       _selectedGroupId = group.groupId;
-      // Yangi guruhning oylar oralig'iga sig'masa joriy oyga qaytamiz
-      if (!_monthOptionsFor(group).contains(_selectedMonth)) {
-        _selectedMonth = _currentMonthKey();
-      }
+      _selectedMonth = validMonth;
       _reportsFuture = _service.fetchMyPointReports(
         widget.session,
-        month: _selectedMonth,
+        month: validMonth,
         groupId: _selectedGroupId,
+      );
+      _lessonReportsFuture = _service.fetchMyGroupInfo(
+        widget.session,
+        group.groupId,
+        month: validMonth,
       );
     });
   }
@@ -133,6 +171,11 @@ class _StudentPointReportsPageState extends State<StudentPointReportsPage> {
           month: monthKey,
           groupId: _selectedGroupId,
         );
+        _lessonReportsFuture = _service.fetchMyGroupInfo(
+          widget.session,
+          _selectedGroupId!,
+          month: monthKey,
+        );
       }
     });
   }
@@ -140,23 +183,77 @@ class _StudentPointReportsPageState extends State<StudentPointReportsPage> {
   /// Tanlangan guruhda o'qish boshlangan oydan joriy oygacha (joriy oy
   /// birinchi). Boshlanish sanasi topilmasa faqat joriy oy chiqadi.
   List<String> _monthOptionsFor(StudentGroupSummary? group) {
+    if (group?.availableMonths.isNotEmpty == true) {
+      return group!.availableMonths;
+    }
     final now = DateTime.now();
     final current = DateTime(now.year, now.month);
-    final startDate =
-        _parseDdMmYyyy(group?.startDate ?? '') ??
-        _parseDdMmYyyy(group?.myJoinDate ?? '');
+    final startDate = _parseDdMmYyyy(group?.myJoinDate ?? '');
+    final leaveDate = _parseDdMmYyyy(group?.myLeaveDate ?? '');
     var start = startDate == null
         ? current
         : DateTime(startDate.year, startDate.month);
+    var end = leaveDate == null
+        ? current
+        : DateTime(leaveDate.year, leaveDate.month);
     if (start.isAfter(current)) start = current;
+    if (end.isAfter(current)) end = current;
+    if (end.isBefore(start)) end = start;
 
     final months = <String>[];
-    var cursor = current;
+    var cursor = end;
     while (!cursor.isBefore(start) && months.length < 24) {
       months.add('${cursor.year}-${cursor.month.toString().padLeft(2, '0')}');
       cursor = DateTime(cursor.year, cursor.month - 1);
     }
     return months;
+  }
+
+  String _monthForGroup(
+    StudentGroupSummary group, {
+    String? preferred,
+  }) {
+    final months = _monthOptionsFor(group);
+    if (months.isEmpty) {
+      return preferred != null && RegExp(r'^\d{4}-\d{2}$').hasMatch(preferred)
+          ? preferred
+          : _currentMonthKey();
+    }
+    if (preferred != null && months.contains(preferred)) {
+      return preferred;
+    }
+    return months.first;
+  }
+
+  String _bestMonthForLessonReports(
+    List<StudentLessonReport> reports, {
+    String? preferred,
+  }) {
+    final reportMonths = <String>[];
+    for (final report in reports) {
+      final month = _monthFromLessonReport(report);
+      if (month != null) {
+        reportMonths.add(month);
+      }
+    }
+    final uniqueMonths = reportMonths.toSet().toList()
+      ..sort((a, b) => b.compareTo(a));
+    if (uniqueMonths.isEmpty) {
+      return preferred != null &&
+              RegExp(r'^\d{4}-\d{2}$').hasMatch(preferred)
+          ? preferred
+          : _currentMonthKey();
+    }
+    if (preferred != null && uniqueMonths.contains(preferred)) {
+      return preferred;
+    }
+    return uniqueMonths.first;
+  }
+
+  static String? _monthFromLessonReport(StudentLessonReport report) {
+    final parsed = _parseAnyDate(report.lessonDate);
+    if (parsed == null) return null;
+    return '${parsed.year}-${parsed.month.toString().padLeft(2, '0')}';
   }
 
   static DateTime? _parseDdMmYyyy(String value) {
@@ -168,6 +265,27 @@ class _StudentPointReportsPageState extends State<StudentPointReportsPage> {
     if (day == null || month == null || year == null) return null;
     if (month < 1 || month > 12) return null;
     return DateTime(year, month, day);
+  }
+
+  static DateTime? _parseAnyDate(String value) {
+    final text = value.trim();
+    if (text.isEmpty) return null;
+    final iso = DateTime.tryParse(text);
+    if (iso != null) {
+      return DateTime(iso.year, iso.month, iso.day);
+    }
+    final normalized = text.replaceAll('/', '.');
+    final parts = normalized.split('.');
+    if (parts.length != 3) return null;
+    final first = int.tryParse(parts[0]);
+    final second = int.tryParse(parts[1]);
+    final third = int.tryParse(parts[2]);
+    if (first == null || second == null || third == null) return null;
+    if (second < 1 || second > 12) return null;
+    if (parts[0].length == 4) {
+      return DateTime(first, second, third);
+    }
+    return DateTime(third, second, first);
   }
 
   @override
@@ -242,7 +360,7 @@ class _StudentPointReportsPageState extends State<StudentPointReportsPage> {
                                 color: selected
                                     ? AppTheme.brandColor
                                     : Colors.white,
-                                borderRadius: BorderRadius.circular(999),
+                                borderRadius: BorderRadius.circular(16),
                                 border: Border.all(
                                   color: selected
                                       ? AppTheme.brandColor
@@ -291,7 +409,7 @@ class _StudentPointReportsPageState extends State<StudentPointReportsPage> {
                                         alpha: 0.10,
                                       )
                                     : Colors.transparent,
-                                borderRadius: BorderRadius.circular(999),
+                                borderRadius: BorderRadius.circular(16),
                                 border: Border.all(
                                   color: selected
                                       ? AppTheme.brandColor
@@ -322,26 +440,80 @@ class _StudentPointReportsPageState extends State<StudentPointReportsPage> {
                         builder: (context, reportSnapshot) {
                           final reportError = reportSnapshot.error;
                           final report = reportSnapshot.data;
-                          if (reportSnapshot.connectionState == ConnectionState.waiting) {
+                          if (reportSnapshot.connectionState ==
+                              ConnectionState.waiting) {
                             return const _LoadingCard(height: 220);
                           }
-                          if (reportError != null || report == null) {
-                            return _ErrorCard(
-                              message: _readErrorMessage(reportError),
-                              onRetry: _reload,
-                            );
+
+                          final reportSection =
+                              reportError != null || report == null
+                              ? const SizedBox.shrink()
+                              : Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    _DailyStatsCard(
+                                      dailyBreakdown: report.dailyBreakdown,
+                                    ),
+                                    const SizedBox(height: 12),
+                                    _BreakdownCard(breakdown: report.breakdown),
+                                    const SizedBox(height: 12),
+                                    _EventsCard(events: report.events),
+                                  ],
+                                );
+
+                          if (_lessonReportsFuture == null) {
+                            return reportSection;
                           }
 
                           return Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              _SummaryCard(report: report),
+                              reportSection,
                               const SizedBox(height: 12),
-                              _DailyStatsCard(dailyBreakdown: report.dailyBreakdown),
-                              const SizedBox(height: 12),
-                              _BreakdownCard(breakdown: report.breakdown),
-                              const SizedBox(height: 12),
-                              _EventsCard(events: report.events),
+                              FutureBuilder<StudentGroupDetails>(
+                                future: _lessonReportsFuture,
+                                builder: (context, lessonSnapshot) {
+                                  final lessonError = lessonSnapshot.error;
+                                  final lessonDetail = lessonSnapshot.data;
+                                  if (lessonSnapshot.connectionState ==
+                                      ConnectionState.waiting) {
+                                    return const _LoadingCard(height: 220);
+                                  }
+                                  if (lessonError != null ||
+                                      lessonDetail == null) {
+                                    return _ErrorCard(
+                                      message: _readErrorMessage(lessonError),
+                                      onRetry: _reload,
+                                    );
+                                  }
+                                  final fallbackMonth = _bestMonthForLessonReports(
+                                    lessonDetail.lessonReports,
+                                    preferred: _selectedMonth,
+                                  );
+                                  if (fallbackMonth != _selectedMonth &&
+                                      lessonDetail.lessonReports.isNotEmpty) {
+                                    WidgetsBinding.instance.addPostFrameCallback((
+                                      _,
+                                    ) {
+                                      if (!mounted) return;
+                                      _selectMonth(fallbackMonth);
+                                    });
+                                  }
+                                  final lessonReports = lessonDetail.lessonReports
+                                      .where(
+                                        (report) =>
+                                            _monthFromLessonReport(report) ==
+                                            _selectedMonth,
+                                      )
+                                      .toList();
+                                  return _LessonReportsCard(
+                                    reports: lessonReports,
+                                    selectedMonth: _selectedMonth,
+                                    subjectName: lessonDetail.subjectName,
+                                    teacherName: lessonDetail.teacherName,
+                                  );
+                                },
+                              ),
                             ],
                           );
                         },
@@ -375,7 +547,7 @@ class _MonthHeader extends StatelessWidget {
       width: double.infinity,
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(16),
         gradient: const LinearGradient(
           colors: [Color(0xFF7C0A05), Color(0xFFA70E07), Color(0xFFD32F2F)],
           begin: Alignment.topLeft,
@@ -396,7 +568,7 @@ class _MonthHeader extends StatelessWidget {
             height: 40,
             decoration: BoxDecoration(
               color: Colors.white.withValues(alpha: 0.16),
-              borderRadius: BorderRadius.circular(12),
+              borderRadius: BorderRadius.circular(16),
             ),
             child: const Icon(
               Icons.receipt_long_rounded,
@@ -435,74 +607,6 @@ class _MonthHeader extends StatelessWidget {
   }
 }
 
-class _SummaryCard extends StatelessWidget {
-  const _SummaryCard({required this.report});
-
-  final StudentPointReportsData report;
-
-  @override
-  Widget build(BuildContext context) {
-    // Ball yig'indilari manba bo'yicha: davomat uchun avtomatik berilgan
-    // balllar va teacher qo'lda qo'ygan qo'shimcha balllar
-    var attendancePoints = 0;
-    var manualPoints = 0;
-    for (final event in report.events) {
-      if (event.sourceType == 'attendance') {
-        attendancePoints += event.points;
-      } else {
-        manualPoints += event.points;
-      }
-    }
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: const Color(0xFFE4E9F1)),
-      ),
-      child: Row(
-        children: [
-          _MiniStat(
-            icon: Icons.star_rounded,
-            label: 'Jami ball',
-            value: '${report.summary.totalPoints}',
-            color: AppTheme.brandColor,
-          ),
-          const _MiniStatDivider(),
-          _MiniStat(
-            icon: Icons.how_to_reg_rounded,
-            label: 'Davomat balli',
-            value: '$attendancePoints',
-            color: const Color(0xFF0F766E),
-          ),
-          const _MiniStatDivider(),
-          _MiniStat(
-            icon: Icons.auto_awesome_rounded,
-            label: 'Qo\'shimcha ball',
-            value: '$manualPoints',
-            color: const Color(0xFFD4A017),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _MiniStatDivider extends StatelessWidget {
-  const _MiniStatDivider();
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: 1,
-      height: 34,
-      margin: const EdgeInsets.symmetric(horizontal: 8),
-      color: const Color(0xFFE4E9F1),
-    );
-  }
-}
-
 class _DailyStatsCard extends StatelessWidget {
   const _DailyStatsCard({required this.dailyBreakdown});
 
@@ -516,7 +620,7 @@ class _DailyStatsCard extends StatelessWidget {
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: BorderRadius.circular(16),
         border: Border.all(color: const Color(0xFFE6EBF3)),
       ),
       child: Column(
@@ -524,12 +628,12 @@ class _DailyStatsCard extends StatelessWidget {
         children: [
           const _SectionHeader(
             icon: Icons.calendar_month_rounded,
-            title: 'Dars kunlari bo\'yicha',
+            title: 'Dars kunlari bo\'yicha hisobotlar',
           ),
           const SizedBox(height: 12),
           if (dailyBreakdown.isEmpty)
             const Text(
-              'Hozircha kunlik ma\'lumot yo\'q',
+              'Hozircha bu oy uchun kunlik ma\'lumot yo\'q',
               style: TextStyle(
                 fontSize: 12.5,
                 fontWeight: FontWeight.w600,
@@ -553,7 +657,7 @@ class _DailyStatsCard extends StatelessWidget {
                           color: isToday
                               ? AppTheme.brandColor.withValues(alpha: 0.08)
                               : const Color(0xFFF4F6FA),
-                          borderRadius: BorderRadius.circular(13),
+                          borderRadius: BorderRadius.circular(16),
                           border: isToday
                               ? Border.all(
                                   color: AppTheme.brandColor.withValues(
@@ -591,7 +695,7 @@ class _DailyStatsCard extends StatelessWidget {
                             ),
                             const SizedBox(height: 2),
                             Text(
-                              '${day.totalEvents} ta yozuv',
+                              '${day.totalEvents} ta dars yozuvi',
                               style: const TextStyle(
                                 fontSize: 11,
                                 fontWeight: FontWeight.w600,
@@ -611,7 +715,7 @@ class _DailyStatsCard extends StatelessWidget {
                           color: positive
                               ? const Color(0xFF16934F).withValues(alpha: 0.08)
                               : const Color(0xFFDC2626).withValues(alpha: 0.08),
-                          borderRadius: BorderRadius.circular(999),
+                          borderRadius: BorderRadius.circular(16),
                         ),
                         child: Text(
                           positive
@@ -662,7 +766,7 @@ class _SectionHeader extends StatelessWidget {
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
             ),
-            borderRadius: BorderRadius.circular(10),
+            borderRadius: BorderRadius.circular(16),
           ),
           child: Icon(icon, size: 16, color: Colors.white),
         ),
@@ -682,51 +786,6 @@ class _SectionHeader extends StatelessWidget {
   }
 }
 
-class _MiniStat extends StatelessWidget {
-  const _MiniStat({
-    required this.icon,
-    required this.label,
-    required this.value,
-    required this.color,
-  });
-
-  final IconData icon;
-  final String label;
-  final String value;
-  final Color color;
-
-  @override
-  Widget build(BuildContext context) {
-    return Expanded(
-      child: Column(
-        children: [
-          Icon(icon, size: 16, color: color),
-          const SizedBox(height: 4),
-          Text(
-            value,
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              fontSize: 17,
-              fontWeight: FontWeight.w900,
-              color: color,
-            ),
-          ),
-          const SizedBox(height: 1),
-          Text(
-            label,
-            textAlign: TextAlign.center,
-            style: const TextStyle(
-              fontSize: 9.5,
-              fontWeight: FontWeight.w700,
-              color: Color(0xFF8A93A5),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
 class _BreakdownCard extends StatelessWidget {
   const _BreakdownCard({required this.breakdown});
 
@@ -738,7 +797,7 @@ class _BreakdownCard extends StatelessWidget {
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: BorderRadius.circular(16),
         border: Border.all(color: const Color(0xFFE6EBF3)),
       ),
       child: Column(
@@ -779,7 +838,7 @@ class _BreakdownCard extends StatelessWidget {
                     ),
                     decoration: BoxDecoration(
                       color: AppTheme.brandColor.withValues(alpha: 0.08),
-                      borderRadius: BorderRadius.circular(999),
+                      borderRadius: BorderRadius.circular(16),
                     ),
                     child: Text(
                       '${item.totalPoints} ball',
@@ -811,7 +870,7 @@ class _EventsCard extends StatelessWidget {
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: BorderRadius.circular(16),
         border: Border.all(color: const Color(0xFFE6EBF3)),
       ),
       child: Column(
@@ -865,7 +924,7 @@ class _EventRow extends StatelessWidget {
           height: 38,
           decoration: BoxDecoration(
             color: color.withValues(alpha: 0.08),
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: BorderRadius.circular(16),
           ),
           alignment: Alignment.center,
           child: Text(
@@ -929,7 +988,7 @@ class _EventRow extends StatelessWidget {
                   ),
                   decoration: BoxDecoration(
                     color: const Color(0xFFF6F8FB),
-                    borderRadius: BorderRadius.circular(10),
+                    borderRadius: BorderRadius.circular(16),
                     border: const Border(
                       left: BorderSide(color: Color(0xFFA70E07), width: 3),
                     ),
@@ -966,6 +1025,363 @@ class _EventRow extends StatelessWidget {
   }
 }
 
+class _LessonReportsCard extends StatelessWidget {
+  const _LessonReportsCard({
+    required this.reports,
+    required this.selectedMonth,
+    required this.subjectName,
+    required this.teacherName,
+  });
+
+  final List<StudentLessonReport> reports;
+  final String selectedMonth;
+  final String subjectName;
+  final String teacherName;
+
+  @override
+  Widget build(BuildContext context) {
+    final visibleReports = reports;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.only(left: 2, right: 2),
+          child: Row(
+            children: [
+              Container(
+                width: 28,
+                height: 28,
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(
+                    colors: [Color(0xFFD32F2F), Color(0xFF7C0A05)],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: const Icon(
+                  Icons.assignment_turned_in_rounded,
+                  size: 15,
+                  color: Colors.white,
+                ),
+              ),
+              const SizedBox(width: 8),
+              const Expanded(
+                child: Text(
+                  'Kunlik hisobotlar',
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w900,
+                    color: Color(0xFF182033),
+                  ),
+                ),
+              ),
+              Text(
+                '${visibleReports.length} ta',
+                style: const TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w800,
+                  color: Color(0xFF8A93A5),
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 10),
+        if (visibleReports.isEmpty)
+          const Padding(
+            padding: EdgeInsets.symmetric(vertical: 12),
+            child: Center(
+              child: Text(
+                'Tanlangan oy uchun report topilmadi',
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: Color(0xFF64748B),
+                ),
+              ),
+            ),
+          )
+        else
+          Column(
+            children: [
+              for (var i = 0; i < visibleReports.length; i++) ...[
+                _LessonReportTile(
+                  report: visibleReports[i],
+                  subjectName: subjectName,
+                  teacherName: teacherName,
+                ),
+                if (i < visibleReports.length - 1) const SizedBox(height: 10),
+              ],
+            ],
+          ),
+      ],
+    );
+  }
+}
+
+class _LessonReportTile extends StatelessWidget {
+  const _LessonReportTile({
+    required this.report,
+    required this.subjectName,
+    required this.teacherName,
+  });
+
+  final StudentLessonReport report;
+  final String subjectName;
+  final String teacherName;
+
+  @override
+  Widget build(BuildContext context) {
+    final tone = _reportTone(report.feedback);
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: tone.border),
+      ),
+      child: Column(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: tone.header,
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        _formatLessonDate(report.lessonDate),
+                        style: const TextStyle(
+                          fontSize: 14.5,
+                          fontWeight: FontWeight.w900,
+                          color: Color(0xFF182033),
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        'O\'qituvchi: $teacherName • Fan: $subjectName',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontSize: 11.5,
+                          fontWeight: FontWeight.w600,
+                          color: Color(0xFF5A6478),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 5,
+                  ),
+                  decoration: BoxDecoration(
+                    color: tone.badgeBg,
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: tone.border),
+                  ),
+                  child: Text(
+                    _feedbackLabelUz(report.feedback),
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w900,
+                      color: tone.badgeFg,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(12, 12, 12, 14),
+            child: Column(
+              children: [
+                if (report.rows.isNotEmpty) ...[
+                  Container(
+                    decoration: BoxDecoration(
+                      border: Border.all(color: const Color(0xFFE1E7F0)),
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    child: SingleChildScrollView(
+                      scrollDirection: Axis.horizontal,
+                      child: DataTable(
+                        columnSpacing: 12,
+                        horizontalMargin: 12,
+                        headingRowHeight: 36,
+                        dataRowMinHeight: 36,
+                        dataRowMaxHeight: 48,
+                        columns: const [
+                          DataColumn(label: Text('Talaba')),
+                          DataColumn(label: Text('Uy vazifasi')),
+                          DataColumn(label: Text('So\'z boyligi')),
+                          DataColumn(label: Text('Davomat')),
+                          DataColumn(label: Text('Faollik')),
+                          DataColumn(label: Text('Jami')),
+                          DataColumn(label: Text('Foiz')),
+                          DataColumn(label: Text('Baho')),
+                        ],
+                        rows: report.rows
+                            .map(
+                              (row) => DataRow(
+                                cells: [
+                                  DataCell(
+                                    SizedBox(
+                                      width: 130,
+                                      child: Text(
+                                        _formatStudentName(row.studentName),
+                                        maxLines: 2,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    ),
+                                  ),
+                                  DataCell(Text('${row.homework}')),
+                                  DataCell(Text('${row.vocabulary}')),
+                                  DataCell(Text('${row.attendance}')),
+                                  DataCell(Text('${row.participation}')),
+                                  DataCell(Text('${row.total}')),
+                                  DataCell(Text('${row.percent}%')),
+                                  DataCell(
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 8,
+                                        vertical: 3,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color: _reportTone(
+                                          row.feedback,
+                                        ).badgeBg,
+                                        borderRadius: BorderRadius.circular(16),
+                                        border: Border.all(
+                                          color: _reportTone(
+                                            row.feedback,
+                                          ).border,
+                                        ),
+                                      ),
+                                      child: Text(
+                                        _feedbackLabelUz(row.feedback),
+                                        style: TextStyle(
+                                          fontSize: 10,
+                                          fontWeight: FontWeight.w900,
+                                          color: _reportTone(
+                                            row.feedback,
+                                          ).badgeFg,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            )
+                            .toList(),
+                      ),
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+String _feedbackLabelUz(String feedback) {
+  final normalized = feedback.trim().toUpperCase();
+  if (normalized.contains('BAD')) return 'Past';
+  if (normalized.contains('PERFECT')) return 'A’lo';
+  if (normalized.contains('GOOD')) return 'Yaxshi';
+  return feedback.isEmpty ? 'Baholanmagan' : feedback;
+}
+
+class _ReportTone {
+  const _ReportTone({
+    required this.border,
+    required this.header,
+    required this.badgeBg,
+    required this.badgeFg,
+  });
+
+  final Color border;
+  final Color header;
+  final Color badgeBg;
+  final Color badgeFg;
+}
+
+_ReportTone _reportTone(String feedback) {
+  switch (feedback.trim().toUpperCase()) {
+    case 'PERFECT':
+      return const _ReportTone(
+        border: Color(0xFFB9D5FF),
+        header: Color(0xFFEAF2FF),
+        badgeBg: Color(0xFFDCEBFF),
+        badgeFg: Color(0xFF275DDE),
+      );
+    case 'GOOD':
+      return const _ReportTone(
+        border: Color(0xFFB9E7C9),
+        header: Color(0xFFEAF8EE),
+        badgeBg: Color(0xFFDFF6E7),
+        badgeFg: Color(0xFF118B50),
+      );
+    default:
+      return const _ReportTone(
+        border: Color(0xFFF3C0C0),
+        header: Color(0xFFFCECEC),
+        badgeBg: Color(0xFFFEE2E2),
+        badgeFg: Color(0xFFC81E1E),
+      );
+  }
+}
+
+String _formatLessonDate(String value) {
+  final parsed = DateTime.tryParse(value);
+  if (parsed == null) return value;
+  const months = [
+    'yanvar',
+    'fevral',
+    'mart',
+    'aprel',
+    'may',
+    'iyun',
+    'iyul',
+    'avgust',
+    'sentabr',
+    'oktabr',
+    'noyabr',
+    'dekabr',
+  ];
+  const weekdays = [
+    'Dushanba',
+    'Seshanba',
+    'Chorshanba',
+    'Payshanba',
+    'Juma',
+    'Shanba',
+    'Yakshanba',
+  ];
+  final month = months[parsed.month - 1];
+  final weekday = weekdays[(parsed.weekday - 1) % 7];
+  return '${parsed.day.toString().padLeft(2, '0')} $month ${parsed.year} • $weekday';
+}
+
+String _formatStudentName(String value) {
+  final text = value.trim().replaceAll(RegExp(r'\s+'), ' ');
+  if (text.isEmpty) return 'Noma\'lum';
+  final parts = text.split(' ');
+  if (parts.length <= 1) return text;
+  return '${parts.first}\n${parts.skip(1).join(' ')}';
+}
+
 class _LoadingCard extends StatelessWidget {
   const _LoadingCard({required this.height});
 
@@ -978,7 +1394,7 @@ class _LoadingCard extends StatelessWidget {
       alignment: Alignment.center,
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: BorderRadius.circular(16),
         border: Border.all(color: const Color(0xFFE6EBF3)),
       ),
       child: const CircularProgressIndicator(color: AppTheme.brandColor),
@@ -987,10 +1403,7 @@ class _LoadingCard extends StatelessWidget {
 }
 
 class _ErrorCard extends StatelessWidget {
-  const _ErrorCard({
-    required this.message,
-    required this.onRetry,
-  });
+  const _ErrorCard({required this.message, required this.onRetry});
 
   final String message;
   final VoidCallback onRetry;
@@ -1001,7 +1414,7 @@ class _ErrorCard extends StatelessWidget {
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: BorderRadius.circular(16),
         border: Border.all(color: const Color(0xFFE6EBF3)),
       ),
       child: Column(
@@ -1039,7 +1452,7 @@ class _EmptyCard extends StatelessWidget {
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: BorderRadius.circular(16),
         border: Border.all(color: const Color(0xFFE6EBF3)),
       ),
       child: const Text(
@@ -1079,7 +1492,9 @@ String _monthLabel(String monthKey) {
     'noyabr',
     'dekabr',
   ];
-  final monthName = month >= 1 && month <= months.length ? months[month - 1] : monthKey;
+  final monthName = month >= 1 && month <= months.length
+      ? months[month - 1]
+      : monthKey;
   return '$monthName $year';
 }
 

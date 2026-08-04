@@ -232,6 +232,136 @@ class TeacherService {
     return TeacherPaymentsResponse.fromJson(payload);
   }
 
+  /// Guruh va oy bo'yicha oldin yuborilgan statistika hisobotlari.
+  Future<List<TeacherLessonStatisticsReport>> fetchGroupLessonReports(
+    AuthSession session,
+    int groupId, {
+    String? month,
+  }) async {
+    final response = await _client
+        .get(
+          _uri('/api/teacher-statistics/groups/$groupId/reports', {
+            if (month != null && month.isNotEmpty) 'month': month,
+          }),
+          headers: _headers(session),
+        )
+        .timeout(_timeout);
+
+    final payload = _decodeResponse(response);
+    _ensureSuccess(response, payload, 'Statistikalar yuklanmadi');
+
+    final data = payload['data'];
+    if (data is! List) return const <TeacherLessonStatisticsReport>[];
+    return data
+        .whereType<Map>()
+        .map(
+          (item) => TeacherLessonStatisticsReport.fromJson(
+            Map<String, dynamic>.from(item),
+          ),
+        )
+        .toList();
+  }
+
+  Future<TeacherLessonStatisticsReport> saveLessonStatistics(
+    AuthSession session, {
+    required int lessonId,
+    required TeacherLessonStatisticsReport report,
+  }) async {
+    final response = await _client
+        .post(
+          _uri('/api/teacher-statistics/lessons/$lessonId'),
+          headers: _headers(session),
+          body: jsonEncode(report.toJson()),
+        )
+        .timeout(_timeout);
+
+    final payload = _decodeResponse(response);
+    _ensureSuccess(response, payload, 'Statistika saqlanmadi');
+
+    final data = payload['data'];
+    if (data is Map) {
+      return TeacherLessonStatisticsReport.fromJson(
+        Map<String, dynamic>.from(data),
+      );
+    }
+    return report;
+  }
+
+  Future<void> deleteLessonStatistics(
+    AuthSession session,
+    int lessonId,
+  ) async {
+    final response = await _client
+        .delete(
+          _uri('/api/teacher-statistics/lessons/$lessonId'),
+          headers: _headers(session),
+        )
+        .timeout(_timeout);
+
+    final payload = _decodeResponse(response);
+    _ensureSuccess(response, payload, 'Statistika o\'chirilmadi');
+  }
+
+  Future<List<ManagerTeacherStatistics>> fetchEnglishManagerTeacherStatistics(
+    AuthSession session, {
+    String? month,
+  }) async {
+    final response = await _client
+        .get(
+          _uri('/api/teacher-statistics/manager/teachers', {
+            if (month != null && month.isNotEmpty) 'month': month,
+          }),
+          headers: _headers(session),
+        )
+        .timeout(_timeout);
+
+    final payload = _decodeResponse(response);
+    _ensureSuccess(response, payload, 'Teacherlar yuklanmadi');
+
+    final data = payload['data'];
+    if (data is! List) return const <ManagerTeacherStatistics>[];
+    return data
+        .whereType<Map>()
+        .map(
+          (item) => ManagerTeacherStatistics.fromJson(
+            Map<String, dynamic>.from(item),
+          ),
+        )
+        .toList();
+  }
+
+  Future<List<ManagerDailyTeacherReport>> fetchEnglishManagerReports(
+    AuthSession session, {
+    required String month,
+    int? teacherId,
+    int? groupId,
+  }) async {
+    final params = <String, String>{'month': month};
+    if (teacherId != null) params['teacher_id'] = teacherId.toString();
+    if (groupId != null) params['group_id'] = groupId.toString();
+
+    final response = await _client
+        .get(
+          _uri('/api/teacher-statistics/manager/reports', params),
+          headers: _headers(session),
+        )
+        .timeout(_timeout);
+
+    final payload = _decodeResponse(response);
+    _ensureSuccess(response, payload, 'Statistikalar yuklanmadi');
+
+    final data = payload['data'];
+    if (data is! List) return const <ManagerDailyTeacherReport>[];
+    return data
+        .whereType<Map>()
+        .map(
+          (item) => ManagerDailyTeacherReport.fromJson(
+            Map<String, dynamic>.from(item),
+          ),
+        )
+        .toList();
+  }
+
   void dispose() {
     _client.close();
   }
@@ -254,6 +384,8 @@ class TeacherGroup {
     required this.todayMarkedStudentsCount,
     required this.todayAttendanceCompleted,
     required this.todayAttendanceFullyCompleted,
+    required this.todayReportSent,
+    required this.todayReportFullySent,
     required this.scheduleDays,
     required this.scheduleTime,
   });
@@ -275,6 +407,8 @@ class TeacherGroup {
   final int todayMarkedStudentsCount;
   final bool todayAttendanceCompleted;
   final bool todayAttendanceFullyCompleted;
+  final bool todayReportSent;
+  final bool todayReportFullySent;
 
   /// Dars boshlangan oyning birinchi kuni (parse bo'lmasa null)
   DateTime? get classStartMonth {
@@ -297,6 +431,12 @@ class TeacherGroup {
       todayAttendanceCompleted: _asBool(json['today_attendance_completed']),
       todayAttendanceFullyCompleted: _asBool(
         json['today_attendance_fully_completed'],
+      ),
+      todayReportSent: _asBool(
+        json['today_report_sent'],
+      ),
+      todayReportFullySent: _asBool(
+        json['today_report_fully_sent'],
       ),
       scheduleDays: _parseScheduleDays(json['schedule']),
       scheduleTime: _parseScheduleTime(json['schedule']),
@@ -629,6 +769,100 @@ class PaymentSnapshot {
   }
 }
 
+class TeacherLessonStatisticsReport {
+  const TeacherLessonStatisticsReport({
+    required this.lessonId,
+    required this.lessonLabel,
+    required this.groupName,
+    required this.createdAt,
+    required this.rows,
+  });
+
+  final int lessonId;
+  final String lessonLabel;
+  final String groupName;
+  final String createdAt;
+  final List<TeacherLessonStatisticsRowReport> rows;
+
+  Map<String, dynamic> toJson() => {
+    'lesson_id': lessonId,
+    'lesson_label': lessonLabel,
+    'group_name': groupName,
+    'created_at': createdAt,
+    'rows': rows.map((row) => row.toJson()).toList(),
+  };
+
+  factory TeacherLessonStatisticsReport.fromJson(Map<String, dynamic> json) {
+    final rowsRaw = json['rows'];
+    return TeacherLessonStatisticsReport(
+      lessonId: _asInt(json['lesson_id']),
+      lessonLabel: _asString(json['lesson_label']),
+      groupName: _asString(json['group_name']),
+      createdAt: _asString(json['created_at']),
+      rows: rowsRaw is List
+          ? rowsRaw
+                .whereType<Map>()
+                .map(
+                  (item) => TeacherLessonStatisticsRowReport.fromJson(
+                    Map<String, dynamic>.from(item),
+                  ),
+                )
+                .toList()
+          : const <TeacherLessonStatisticsRowReport>[],
+    );
+  }
+}
+
+class TeacherLessonStatisticsRowReport {
+  const TeacherLessonStatisticsRowReport({
+    required this.studentId,
+    required this.studentName,
+    required this.homework,
+    required this.vocabulary,
+    required this.attendance,
+    required this.participation,
+    required this.total,
+    required this.percent,
+    required this.feedback,
+  });
+
+  final int studentId;
+  final String studentName;
+  final int homework;
+  final int vocabulary;
+  final int attendance;
+  final int participation;
+  final int total;
+  final int percent;
+  final String feedback;
+
+  Map<String, dynamic> toJson() => {
+    'student_id': studentId,
+    'student_name': studentName,
+    'homework': homework,
+    'vocabulary': vocabulary,
+    'attendance': attendance,
+    'participation': participation,
+    'total': total,
+    'percent': percent,
+    'feedback': feedback,
+  };
+
+  factory TeacherLessonStatisticsRowReport.fromJson(Map<String, dynamic> json) {
+    return TeacherLessonStatisticsRowReport(
+      studentId: _asInt(json['student_id']),
+      studentName: _asString(json['student_name']),
+      homework: _asInt(json['homework']),
+      vocabulary: _asInt(json['vocabulary']),
+      attendance: _asInt(json['attendance']),
+      participation: _asInt(json['participation']),
+      total: _asInt(json['total']),
+      percent: _asInt(json['percent']),
+      feedback: _asString(json['feedback']),
+    );
+  }
+}
+
 class TeacherPaymentsSummary {
   const TeacherPaymentsSummary({
     required this.totalStudents,
@@ -657,6 +891,88 @@ class TeacherPaymentsSummary {
       totalRequired: _asDouble(json['total_required']),
       totalPaid: _asDouble(json['total_paid']),
       totalDebt: _asDouble(json['total_debt']),
+    );
+  }
+}
+
+class ManagerTeacherStatistics {
+  const ManagerTeacherStatistics({
+    required this.teacherId,
+    required this.teacherName,
+    required this.groupsCount,
+    required this.reportsCount,
+    required this.lastReportAt,
+  });
+
+  final int teacherId;
+  final String teacherName;
+  final int groupsCount;
+  final int reportsCount;
+  final String lastReportAt;
+
+  factory ManagerTeacherStatistics.fromJson(Map<String, dynamic> json) {
+    return ManagerTeacherStatistics(
+      teacherId: _asInt(json['teacher_id']),
+      teacherName: _asString(json['teacher_name']),
+      groupsCount: _asInt(json['groups_count']),
+      reportsCount: _asInt(json['reports_count']),
+      lastReportAt: _asString(json['last_report_at']),
+    );
+  }
+}
+
+class ManagerDailyTeacherReport {
+  const ManagerDailyTeacherReport({
+    required this.id,
+    required this.lessonId,
+    required this.lessonDate,
+    required this.lessonTime,
+    required this.groupId,
+    required this.groupName,
+    required this.teacherId,
+    required this.teacherName,
+    required this.subjectName,
+    required this.reportMonth,
+    required this.total,
+    required this.percent,
+    required this.feedback,
+    required this.createdAt,
+    required this.updatedAt,
+  });
+
+  final int id;
+  final int lessonId;
+  final String lessonDate;
+  final String lessonTime;
+  final int groupId;
+  final String groupName;
+  final int teacherId;
+  final String teacherName;
+  final String subjectName;
+  final String reportMonth;
+  final int total;
+  final int percent;
+  final String feedback;
+  final String createdAt;
+  final String updatedAt;
+
+  factory ManagerDailyTeacherReport.fromJson(Map<String, dynamic> json) {
+    return ManagerDailyTeacherReport(
+      id: _asInt(json['id']),
+      lessonId: _asInt(json['lesson_id']),
+      lessonDate: _asString(json['lesson_date']),
+      lessonTime: _asString(json['lesson_time']),
+      groupId: _asInt(json['group_id']),
+      groupName: _asString(json['group_name']),
+      teacherId: _asInt(json['teacher_id']),
+      teacherName: _asString(json['teacher_name']),
+      subjectName: _asString(json['subject_name']),
+      reportMonth: _asString(json['report_month']),
+      total: _asInt(json['total']),
+      percent: _asInt(json['percent']),
+      feedback: _asString(json['feedback']),
+      createdAt: _asString(json['created_at']),
+      updatedAt: _asString(json['updated_at']),
     );
   }
 }

@@ -92,25 +92,53 @@ class _StudentGroupDetailPageState extends State<StudentGroupDetailPage> {
     ];
 
     final now = DateTime.now();
-    final start = _parseDdMmYyyy(detail.startDate) ??
-        _parseDdMmYyyy(detail.createdDate) ??
+    if (detail.availableMonths.isNotEmpty) {
+      return detail.availableMonths
+          .map((key) => _MonthOption(key: key, label: _formatMonthKey(key, monthNames)))
+          .toList();
+    }
+
+    final start =
         _parseDdMmYyyy(detail.studentJoinedDate) ??
+        _parseDdMmYyyy(detail.currentUserStatus?.joinDate ?? '') ??
+        now;
+    final end =
+        _parseDdMmYyyy(detail.studentLeftDate) ??
+        _parseDdMmYyyy(detail.currentUserStatus?.leaveDate ?? '') ??
         now;
 
-    // Nechta oy o'tganini hisoblaymiz (joriy oy ham kiradi)
-    var totalMonths =
-        (now.year - start.year) * 12 + (now.month - start.month) + 1;
-    if (totalMonths < 1) totalMonths = 1;
-    // Juda uzun ro'yxatdan saqlanish uchun 24 oy bilan cheklaymiz
-    if (totalMonths > 24) totalMonths = 24;
+    final startMonth = DateTime(start.year, start.month);
+    var endMonth = DateTime(end.year, end.month);
+    final currentMonth = DateTime(now.year, now.month);
+    if (endMonth.isAfter(currentMonth)) {
+      endMonth = currentMonth;
+    }
+    if (endMonth.isBefore(startMonth)) {
+      endMonth = startMonth;
+    }
 
-    return List.generate(totalMonths, (i) {
-      final date = DateTime(now.year, now.month - i);
-      final key = '${date.year}-${date.month.toString().padLeft(2, '0')}';
-      final name = monthNames[date.month - 1];
-      final label = date.year == now.year ? name : '$name ${date.year}';
-      return _MonthOption(key: key, label: label);
-    });
+    final months = <_MonthOption>[];
+    var cursor = endMonth;
+    while (!cursor.isBefore(startMonth) && months.length < 24) {
+      final key = '${cursor.year}-${cursor.month.toString().padLeft(2, '0')}';
+      months.add(
+        _MonthOption(key: key, label: _formatMonthKey(key, monthNames)),
+      );
+      cursor = DateTime(cursor.year, cursor.month - 1);
+    }
+
+    return months;
+  }
+
+  static String _formatMonthKey(String key, List<String> monthNames) {
+    final parts = key.split('-');
+    if (parts.length != 2) return key;
+    final month = int.tryParse(parts[1]);
+    final year = int.tryParse(parts[0]);
+    if (month == null || year == null || month < 1 || month > 12) return key;
+    final name = monthNames[month - 1];
+    final currentYear = DateTime.now().year;
+    return year == currentYear ? name : '$name $year';
   }
 
   static DateTime? _parseDdMmYyyy(String value) {
@@ -121,6 +149,68 @@ class _StudentGroupDetailPageState extends State<StudentGroupDetailPage> {
     final year = int.tryParse(parts[2]);
     if (day == null || month == null || year == null) return null;
     if (month < 1 || month > 12) return null;
+    return DateTime(year, month, day);
+  }
+
+  static String _bestMonthForLessonReports(
+    List<StudentLessonReport> reports, {
+    String? preferred,
+  }) {
+    if (reports.isEmpty) return preferred ?? '';
+
+    final preferredMonth = preferred?.trim();
+    if (preferredMonth != null && preferredMonth.isNotEmpty) {
+      final preferredMatch = reports.any(
+        (report) => _monthFromLessonReport(report) == preferredMonth,
+      );
+      if (preferredMatch) return preferredMonth;
+    }
+
+    final parsedMonths = reports
+        .map(_monthFromLessonReport)
+        .whereType<String>()
+        .where((month) => month.length == 7)
+        .toList();
+    if (parsedMonths.isEmpty) return preferred ?? '';
+
+    parsedMonths.sort((a, b) => b.compareTo(a));
+    return parsedMonths.first;
+  }
+
+  static String? _monthFromLessonReport(StudentLessonReport report) {
+    final candidates = <String>[
+      report.lessonDate,
+      report.createdAtLabel,
+      report.updatedAtLabel,
+    ];
+    for (final value in candidates) {
+      final parsed = _parseAnyDate(value);
+      if (parsed != null) {
+        return '${parsed.year}-${parsed.month.toString().padLeft(2, '0')}';
+      }
+    }
+    return null;
+  }
+
+  static DateTime? _parseAnyDate(String value) {
+    final text = value.trim();
+    if (text.isEmpty) return null;
+
+    final iso = DateTime.tryParse(text);
+    if (iso != null) {
+      return DateTime(iso.year, iso.month, iso.day);
+    }
+
+    final normalized = text.replaceAll('/', '.');
+    final parts = normalized.split('.');
+    if (parts.length != 3) return null;
+
+    final day = int.tryParse(parts[0]);
+    final month = int.tryParse(parts[1]);
+    final year = int.tryParse(parts[2]);
+    if (day == null || month == null || year == null) return null;
+    if (month < 1 || month > 12) return null;
+
     return DateTime(year, month, day);
   }
 
@@ -150,6 +240,28 @@ class _StudentGroupDetailPageState extends State<StudentGroupDetailPage> {
               );
             } else {
               monthOptions = _buildMonthOptions(detail);
+              if (monthOptions.isNotEmpty &&
+                  monthOptions.every((option) => option.key != _selectedMonth)) {
+                WidgetsBinding.instance.addPostFrameCallback((_) {
+                  if (!mounted || monthOptions.isEmpty) return;
+                  _selectMonth(monthOptions.first.key);
+                });
+              }
+              final hasReportsInSelectedMonth = detail.lessonReports.any(
+                (report) => _monthFromLessonReport(report) == _selectedMonth,
+              );
+              if (!hasReportsInSelectedMonth && detail.lessonReports.isNotEmpty) {
+                final fallbackMonth = _bestMonthForLessonReports(
+                  detail.lessonReports,
+                  preferred: _selectedMonth,
+                );
+                if (fallbackMonth != _selectedMonth) {
+                  WidgetsBinding.instance.addPostFrameCallback((_) {
+                    if (!mounted) return;
+                    _selectMonth(fallbackMonth);
+                  });
+                }
+              }
               final topMates = _topThreeMates(detail.groupmates);
               content = RefreshIndicator(
                 onRefresh: _reload,
@@ -251,7 +363,7 @@ class _HeroCard extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(16),
         border: Border.all(color: const Color(0xFFE4E9F1)),
         boxShadow: const [
           BoxShadow(
@@ -287,7 +399,7 @@ class _HeroCard extends StatelessWidget {
                   ),
                   decoration: BoxDecoration(
                     color: const Color(0xFFEAF0FF),
-                    borderRadius: BorderRadius.circular(999),
+                    borderRadius: BorderRadius.circular(16),
                   ),
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
@@ -417,7 +529,7 @@ class _MonthChipsRow extends StatelessWidget {
               alignment: Alignment.center,
               decoration: BoxDecoration(
                 color: selected ? AppTheme.brandColor : Colors.white,
-                borderRadius: BorderRadius.circular(999),
+                borderRadius: BorderRadius.circular(16),
                 border: Border.all(
                   color: selected
                       ? AppTheme.brandColor
@@ -455,7 +567,7 @@ class _PodiumCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.fromLTRB(10, 16, 10, 14),
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(16),
         gradient: const LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
@@ -610,7 +722,7 @@ class _MembersCard extends StatelessWidget {
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(16),
         border: Border.all(color: const Color(0xFFE1E7F0)),
         boxShadow: const [
           BoxShadow(
@@ -634,7 +746,7 @@ class _MembersCard extends StatelessWidget {
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
                   ),
-                  borderRadius: BorderRadius.circular(10),
+                  borderRadius: BorderRadius.circular(16),
                 ),
                 child: const Icon(
                   Icons.groups_rounded,
@@ -731,7 +843,7 @@ class _MateRow extends StatelessWidget {
                         color: hasRank
                             ? rankColor.withValues(alpha: 0.12)
                             : const Color(0xFFF1F4F9),
-                        borderRadius: BorderRadius.circular(999),
+                        borderRadius: BorderRadius.circular(16),
                       ),
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
@@ -822,10 +934,7 @@ String _formatDate(String value) {
 }
 
 class _ErrorState extends StatelessWidget {
-  const _ErrorState({
-    required this.message,
-    required this.onRetry,
-  });
+  const _ErrorState({required this.message, required this.onRetry});
 
   final String message;
   final VoidCallback onRetry;
@@ -838,7 +947,11 @@ class _ErrorState extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(Icons.error_outline_rounded, color: Color(0xFFA70E07), size: 42),
+            const Icon(
+              Icons.error_outline_rounded,
+              color: Color(0xFFA70E07),
+              size: 42,
+            ),
             const SizedBox(height: 10),
             Text(
               message,

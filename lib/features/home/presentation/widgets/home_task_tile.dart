@@ -33,7 +33,7 @@ class HomeTaskTile extends StatelessWidget {
             width: 50,
             decoration: BoxDecoration(
               color: iconBackground,
-              borderRadius: BorderRadius.circular(10),
+              borderRadius: BorderRadius.circular(18),
             ),
             child: Icon(icon, color: iconColor, size: 26),
           ),
@@ -66,7 +66,7 @@ class HomeTaskTile extends StatelessWidget {
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
             decoration: BoxDecoration(
               color: statusBackground,
-              borderRadius: BorderRadius.circular(10),
+              borderRadius: BorderRadius.circular(18),
             ),
             child: Text(
               statusLabel,

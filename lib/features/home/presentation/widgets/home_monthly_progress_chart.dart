@@ -3,9 +3,10 @@ import 'package:flutter/material.dart';
 
 import '../../../student/data/student_groups_service.dart';
 
-/// Oylik o'sish kartasi — tanlangan fan bo'yicha har bir dars kuni uchun
-/// olingan ball line chart'da ko'rsatiladi (ball qo'yilmagan dars kuni 0
-/// turadi). Bir nechta fan bo'lsa, chiplar orqali fan tanlanadi.
+/// Oylik hisobot kartasi — tanlangan guruh bo'yicha teacher yuborgan
+/// report ballari line chart'da ko'rsatiladi. Har bir nuqta report yuborilgan
+/// kunning jami ballini bildiradi. Bir nechta guruh bo'lsa, chiplar orqali
+/// guruh tanlanadi.
 class HomeMonthlyProgressChart extends StatefulWidget {
   const HomeMonthlyProgressChart({
     super.key,
@@ -30,16 +31,6 @@ class HomeMonthlyProgressChart extends StatefulWidget {
 class _HomeMonthlyProgressChartState extends State<HomeMonthlyProgressChart> {
   static const _indigo = Color(0xFF4F46E5);
   static const _indigoLight = Color(0xFF818CF8);
-
-  static const Map<String, int> _uzDayToWeekday = {
-    'dushanba': DateTime.monday,
-    'seshanba': DateTime.tuesday,
-    'chorshanba': DateTime.wednesday,
-    'payshanba': DateTime.thursday,
-    'juma': DateTime.friday,
-    'shanba': DateTime.saturday,
-    'yakshanba': DateTime.sunday,
-  };
 
   int? _selectedGroupId;
 
@@ -103,8 +94,8 @@ class _HomeMonthlyProgressChartState extends State<HomeMonthlyProgressChart> {
     return streak;
   }
 
-  /// Har bir dars kuni uchun nuqta: oy boshidan bugungacha jadvaldagi
-  /// dars kunlari + ball olingan kunlar. Ball qo'yilmagan dars kuni 0.
+  /// Har bir report kuni uchun nuqta: oy boshidan bugungacha
+  /// report yuborilgan kunlar. Ballar bo'lmasa chart bo'sh qoladi.
   List<FlSpot> _dailySpots(List<StudentPointDailyBreakdown> daily) {
     final now = DateTime.now();
 
@@ -118,24 +109,7 @@ class _HomeMonthlyProgressChartState extends State<HomeMonthlyProgressChart> {
       pointsByDay[date.day] = (pointsByDay[date.day] ?? 0) + d.totalPoints;
     }
 
-    // Tanlangan fanning dars kunlari (hafta kunlari bo'yicha)
-    final lessonWeekdays = <int>{};
-    final group = _selectedGroup;
-    if (group != null) {
-      for (final day in group.scheduleDays) {
-        final weekday = _uzDayToWeekday[day.trim().toLowerCase()];
-        if (weekday != null) lessonWeekdays.add(weekday);
-      }
-    }
-
-    // Oy boshidan bugungacha dars kunlari + ball olingan kunlar
-    final days = <int>{...pointsByDay.keys};
-    for (var day = 1; day <= now.day; day++) {
-      final date = DateTime(now.year, now.month, day);
-      if (lessonWeekdays.contains(date.weekday)) days.add(day);
-    }
-
-    final sortedDays = days.toList()..sort();
+    final sortedDays = pointsByDay.keys.toList()..sort();
     return [
       for (final day in sortedDays)
         FlSpot(day.toDouble(), (pointsByDay[day] ?? 0).toDouble()),
@@ -149,7 +123,7 @@ class _HomeMonthlyProgressChartState extends State<HomeMonthlyProgressChart> {
       clipBehavior: Clip.antiAlias,
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: BorderRadius.circular(24),
         border: Border.all(color: const Color(0xFFE4E9F1)),
         boxShadow: const [
           BoxShadow(
@@ -169,14 +143,14 @@ class _HomeMonthlyProgressChartState extends State<HomeMonthlyProgressChart> {
                 Container(
                   width: 30,
                   height: 30,
-                  decoration: BoxDecoration(
-                    gradient: const LinearGradient(
-                      colors: [_indigo, _indigoLight],
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
+                    decoration: BoxDecoration(
+                      gradient: const LinearGradient(
+                        colors: [_indigo, _indigoLight],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      ),
+                    borderRadius: BorderRadius.circular(16),
                     ),
-                    borderRadius: BorderRadius.circular(10),
-                  ),
                   child: const Icon(
                     Icons.trending_up_rounded,
                     size: 16,
@@ -189,7 +163,7 @@ class _HomeMonthlyProgressChartState extends State<HomeMonthlyProgressChart> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       const Text(
-                        'Oylik o\'sish',
+                        'Oylik hisobot',
                         style: TextStyle(
                           fontSize: 12,
                           fontWeight: FontWeight.w800,
@@ -198,7 +172,7 @@ class _HomeMonthlyProgressChartState extends State<HomeMonthlyProgressChart> {
                       ),
                       if (_selectedGroup != null)
                         Text(
-                          _selectedGroup!.subjectName,
+                          'Report ballari',
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: const TextStyle(
@@ -265,7 +239,7 @@ class _HomeMonthlyProgressChartState extends State<HomeMonthlyProgressChart> {
                           ),
                           decoration: BoxDecoration(
                             color: _indigo.withValues(alpha: 0.08),
-                            borderRadius: BorderRadius.circular(999),
+                        borderRadius: BorderRadius.circular(18),
                           ),
                           child: Text(
                             '$totalPoints ball',
@@ -287,7 +261,7 @@ class _HomeMonthlyProgressChartState extends State<HomeMonthlyProgressChart> {
                               color: const Color(
                                 0xFFEA580C,
                               ).withValues(alpha: 0.10),
-                              borderRadius: BorderRadius.circular(999),
+                              borderRadius: BorderRadius.circular(8),
                             ),
                             child: Row(
                               mainAxisSize: MainAxisSize.min,
@@ -314,7 +288,7 @@ class _HomeMonthlyProgressChartState extends State<HomeMonthlyProgressChart> {
                     ),
                     const SizedBox(height: 12),
                     if (spots.length < 2)
-                      const _ChartPlaceholder(text: 'Bu oyda hali ball yo\'q')
+                      const _ChartPlaceholder(text: 'Bu oyda hali report yo\'q')
                     else
                       SizedBox(
                         height: 130,
@@ -335,7 +309,7 @@ class _HomeMonthlyProgressChartState extends State<HomeMonthlyProgressChart> {
       color: Colors.transparent,
       child: InkWell(
         onTap: widget.onTap,
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: BorderRadius.circular(24),
         child: card,
       ),
     );
@@ -365,7 +339,7 @@ class _SubjectChip extends StatelessWidget {
         alignment: Alignment.center,
         decoration: BoxDecoration(
           color: selected ? _indigo : const Color(0xFFF1F4F9),
-          borderRadius: BorderRadius.circular(999),
+          borderRadius: BorderRadius.circular(24),
         ),
         child: Text(
           label,
@@ -438,7 +412,7 @@ class _ProgressLineChart extends StatelessWidget {
         lineTouchData: LineTouchData(
           touchTooltipData: LineTouchTooltipData(
             getTooltipColor: (_) => const Color(0xFF182033),
-            tooltipBorderRadius: BorderRadius.circular(10),
+            tooltipBorderRadius: BorderRadius.circular(16),
             fitInsideHorizontally: true,
             fitInsideVertically: true,
             getTooltipItems: (touchedSpots) => touchedSpots

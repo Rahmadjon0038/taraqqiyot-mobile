@@ -28,110 +28,110 @@ class HomeBottomNavigation extends StatelessWidget {
     return SafeArea(
       top: false,
       child: Container(
-      margin: const EdgeInsets.fromLTRB(6, 0, 6, 10),
-      padding: const EdgeInsets.all(4),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(26),
-        boxShadow: const [
-          BoxShadow(
-            color: Color(0x14000000),
-            blurRadius: 18,
-            offset: Offset(0, 6),
-          ),
-        ],
-      ),
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          final itemWidth = constraints.maxWidth / _items.length;
-          final indicatorWidth = (itemWidth - 8).clamp(50.0, 62.0);
-          final indicatorLeft =
-              (itemWidth * currentIndex) + ((itemWidth - indicatorWidth) / 2);
+        margin: const EdgeInsets.fromLTRB(8, 0, 8, 8),
+        padding: const EdgeInsets.all(3),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(24),
+          boxShadow: const [
+            BoxShadow(
+              color: Color(0x14000000),
+              blurRadius: 18,
+              offset: Offset(0, 6),
+            ),
+          ],
+        ),
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final itemWidth = constraints.maxWidth / _items.length;
+            final indicatorWidth = (itemWidth - 10).clamp(46.0, 58.0);
+            final indicatorLeft =
+                (itemWidth * currentIndex) + ((itemWidth - indicatorWidth) / 2);
 
-          return SizedBox(
-            height: 60,
-            child: Stack(
-              children: [
-                AnimatedPositioned(
-                  duration: const Duration(milliseconds: 260),
-                  curve: Curves.easeOutCubic,
-                  left: indicatorLeft,
-                  top: 8,
-                  width: indicatorWidth,
-                  height: 44,
-                  child: DecoratedBox(
-                    decoration: BoxDecoration(
-                      color: AppTheme.brandColor,
-                      borderRadius: BorderRadius.circular(18),
+            return SizedBox(
+              height: 54,
+              child: Stack(
+                children: [
+                  AnimatedPositioned(
+                    duration: const Duration(milliseconds: 260),
+                    curve: Curves.easeOutCubic,
+                    left: indicatorLeft,
+                    top: 7,
+                    width: indicatorWidth,
+                    height: 40,
+                    child: DecoratedBox(
+                        decoration: BoxDecoration(
+                          color: AppTheme.brandColor,
+                          borderRadius: BorderRadius.circular(24),
+                        ),
                     ),
                   ),
-                ),
-                Row(
-                  children: List.generate(_items.length, (index) {
-                    final item = _items[index];
-                    final selected = index == currentIndex;
+                  Row(
+                    children: List.generate(_items.length, (index) {
+                      final item = _items[index];
+                      final selected = index == currentIndex;
 
-                    return Expanded(
-                      child: DragTarget<int>(
-                        onWillAcceptWithDetails: (_) => true,
-                        onAcceptWithDetails: (details) {
-                          if (details.data != index) {
-                            onTap(index);
-                          }
-                        },
-                        builder: (context, candidates, rejects) {
-                          final hovered = candidates.isNotEmpty;
-                          final iconColor = selected
-                              ? Colors.white
-                              : hovered
-                              ? AppTheme.brandColor
-                              : const Color(0xFF7A8394);
+                      return Expanded(
+                        child: DragTarget<int>(
+                          onWillAcceptWithDetails: (_) => true,
+                          onAcceptWithDetails: (details) {
+                            if (details.data != index) {
+                              onTap(index);
+                            }
+                          },
+                          builder: (context, candidates, rejects) {
+                            final hovered = candidates.isNotEmpty;
+                            final iconColor = selected
+                                ? Colors.white
+                                : hovered
+                                ? AppTheme.brandColor
+                                : const Color(0xFF7A8394);
 
-                          final iconView = Center(
-                            child: AnimatedScale(
-                              duration: const Duration(milliseconds: 180),
-                              curve: Curves.easeOut,
-                              scale: hovered ? 1.05 : 1.0,
-                              child: Icon(
-                                item.icon,
-                                size: 26,
-                                color: iconColor,
+                            final iconView = Center(
+                              child: AnimatedScale(
+                                duration: const Duration(milliseconds: 180),
+                                curve: Curves.easeOut,
+                                scale: hovered ? 1.05 : 1.0,
+                                child: Icon(
+                                  item.icon,
+                                  size: 24,
+                                  color: iconColor,
+                                ),
                               ),
-                            ),
-                          );
-
-                          final tappable = InkWell(
-                            onTap: () => onTap(index),
-                            borderRadius: BorderRadius.circular(18),
-                            child: SizedBox(height: 60, child: iconView),
-                          );
-
-                          if (selected) {
-                            return LongPressDraggable<int>(
-                              data: index,
-                              feedback: Material(
-                                color: Colors.transparent,
-                                child: _DragPreview(item: item),
-                              ),
-                              childWhenDragging: Opacity(
-                                opacity: 0.18,
-                                child: tappable,
-                              ),
-                              child: tappable,
                             );
-                          }
 
-                          return tappable;
-                        },
-                      ),
-                    );
-                  }),
-                ),
-              ],
-            ),
-          );
-        },
-      ),
+                            final tappable = InkWell(
+                              onTap: () => onTap(index),
+                              borderRadius: BorderRadius.circular(18),
+                              child: SizedBox(height: 54, child: iconView),
+                            );
+
+                            if (selected) {
+                              return LongPressDraggable<int>(
+                                data: index,
+                                feedback: Material(
+                                  color: Colors.transparent,
+                                  child: _DragPreview(item: item),
+                                ),
+                                childWhenDragging: Opacity(
+                                  opacity: 0.18,
+                                  child: tappable,
+                                ),
+                                child: tappable,
+                              );
+                            }
+
+                            return tappable;
+                          },
+                        ),
+                      );
+                    }),
+                  ),
+                ],
+              ),
+            );
+          },
+        ),
       ),
     );
   }
@@ -151,11 +151,11 @@ class _DragPreview extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      width: 60,
-      height: 44,
+      width: 56,
+      height: 40,
       decoration: BoxDecoration(
         color: AppTheme.brandColor,
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: BorderRadius.circular(24),
         boxShadow: const [
           BoxShadow(
             color: Color(0x33000000),
@@ -164,7 +164,7 @@ class _DragPreview extends StatelessWidget {
           ),
         ],
       ),
-      child: Icon(item.icon, color: Colors.white, size: 24),
+      child: Icon(item.icon, color: Colors.white, size: 22),
     );
   }
 }
