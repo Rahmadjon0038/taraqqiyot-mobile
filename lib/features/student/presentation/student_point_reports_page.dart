@@ -509,6 +509,7 @@ class _StudentPointReportsPageState extends State<StudentPointReportsPage> {
                                     selectedMonth: _selectedMonth,
                                     subjectName: lessonDetail.subjectName,
                                     teacherName: lessonDetail.teacherName,
+                                    currentStudentId: widget.session.user.id,
                                   );
                                 },
                               ),
@@ -863,12 +864,14 @@ class _LessonReportsCard extends StatelessWidget {
     required this.selectedMonth,
     required this.subjectName,
     required this.teacherName,
+    required this.currentStudentId,
   });
 
   final List<StudentLessonReport> reports;
   final String selectedMonth;
   final String subjectName;
   final String teacherName;
+  final int currentStudentId;
 
   @override
   Widget build(BuildContext context) {
@@ -943,6 +946,7 @@ class _LessonReportsCard extends StatelessWidget {
                   report: visibleReports[i],
                   subjectName: subjectName,
                   teacherName: teacherName,
+                  currentStudentId: currentStudentId,
                 ),
                 if (i < visibleReports.length - 1) const SizedBox(height: 10),
               ],
@@ -953,20 +957,25 @@ class _LessonReportsCard extends StatelessWidget {
   }
 }
 
+/// Talabaning o'ziga tegishli jadval qatorini ajratib ko'rsatish uchun fon.
+/// Baholash tuslaridan (ko'k/yashil/qizil) ataylab farqli — chalkashmasin.
+const Color _selfRowHighlight = Color(0xFFFFF3D6);
+
 class _LessonReportTile extends StatelessWidget {
   const _LessonReportTile({
     required this.report,
     required this.subjectName,
     required this.teacherName,
+    required this.currentStudentId,
   });
 
   final StudentLessonReport report;
   final String subjectName;
   final String teacherName;
+  final int currentStudentId;
 
   @override
   Widget build(BuildContext context) {
-    final tone = _reportTone(report.feedback);
     final visibleColumns = report.columns
         .where((column) => column.enabled)
         .toList();
@@ -974,14 +983,14 @@ class _LessonReportTile extends StatelessWidget {
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: tone.border),
+        border: Border.all(color: const Color(0xFFE1E7F0)),
       ),
       child: Column(
         children: [
           Container(
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-              color: tone.header,
+              color: const Color(0xFFF7F9FC),
               borderRadius: BorderRadius.circular(16),
             ),
             child: Row(
@@ -1011,26 +1020,6 @@ class _LessonReportTile extends StatelessWidget {
                         ),
                       ),
                     ],
-                  ),
-                ),
-                const SizedBox(width: 10),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 10,
-                    vertical: 5,
-                  ),
-                  decoration: BoxDecoration(
-                    color: tone.badgeBg,
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(color: tone.border),
-                  ),
-                  child: Text(
-                    _feedbackLabelUz(report.feedback),
-                    style: TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w900,
-                      color: tone.badgeFg,
-                    ),
                   ),
                 ),
               ],
@@ -1064,7 +1053,14 @@ class _LessonReportTile extends StatelessWidget {
                         ],
                         rows: report.rows
                             .map(
-                              (row) => DataRow(
+                              (row) {
+                                final isMe = row.studentId == currentStudentId;
+                                return DataRow(
+                                color: isMe
+                                    ? WidgetStateProperty.all(
+                                        _selfRowHighlight,
+                                      )
+                                    : null,
                                 cells: [
                                   DataCell(
                                     SizedBox(
@@ -1073,6 +1069,11 @@ class _LessonReportTile extends StatelessWidget {
                                         _formatStudentName(row.studentName),
                                         maxLines: 2,
                                         overflow: TextOverflow.ellipsis,
+                                        style: isMe
+                                            ? const TextStyle(
+                                                fontWeight: FontWeight.w900,
+                                              )
+                                            : null,
                                       ),
                                     ),
                                   ),
@@ -1112,7 +1113,8 @@ class _LessonReportTile extends StatelessWidget {
                                     ),
                                   ),
                                 ],
-                              ),
+                                );
+                              },
                             )
                             .toList(),
                       ),
