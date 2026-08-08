@@ -234,10 +234,9 @@ class _MonthlyPointsChipState extends State<_MonthlyPointsChip> {
 
   Future<void> _load() async {
     try {
-      final reports = await _service.fetchMyPointReports(
-        widget.session,
-        month: 'all',
-      );
+      // month berilmasa backend joriy oyni oladi — chip izohida aytilganidek
+      // "joriy oyda to'plangan ball" ko'rsatilishi kerak, butun davr emas.
+      final reports = await _service.fetchMyPointReports(widget.session);
       final points = reports.summary.totalPoints;
       if (!mounted) return;
       setState(() {
