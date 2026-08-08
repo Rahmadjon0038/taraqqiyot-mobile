@@ -1,9 +1,50 @@
 import 'dart:convert';
 
 import 'package:http/http.dart' as http;
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../../core/config/api_config.dart';
 import '../../auth/models/auth_session.dart';
+
+const String _lastUsedColumnsPrefsKey = 'teacher_last_report_columns_v1';
+
+/// Teacher oxirgi hisobotda ishlatgan ustunlarni saqlaydi — yangi (hali
+/// hisoboti yo'q) dars ochilganda shu ustunlar taklif etiladi, har safar
+/// standart 4 ta ustunga qaytarilmaydi.
+Future<void> saveLastUsedReportColumns(
+  List<TeacherLessonStatisticsColumnReport> columns,
+) async {
+  if (columns.isEmpty) return;
+  try {
+    final prefs = await SharedPreferences.getInstance();
+    final encoded = jsonEncode(columns.map((c) => c.toJson()).toList());
+    await prefs.setString(_lastUsedColumnsPrefsKey, encoded);
+  } catch (_) {
+    // Lokal saqlash muvaffaqiyatsiz bo'lsa ham UI oqimi buzilmasin.
+  }
+}
+
+Future<List<TeacherLessonStatisticsColumnReport>?>
+loadLastUsedReportColumns() async {
+  try {
+    final prefs = await SharedPreferences.getInstance();
+    final raw = prefs.getString(_lastUsedColumnsPrefsKey);
+    if (raw == null || raw.isEmpty) return null;
+    final decoded = jsonDecode(raw);
+    if (decoded is! List) return null;
+    final columns = decoded
+        .whereType<Map>()
+        .map(
+          (item) => TeacherLessonStatisticsColumnReport.fromJson(
+            Map<String, dynamic>.from(item),
+          ),
+        )
+        .toList();
+    return columns.isEmpty ? null : columns;
+  } catch (_) {
+    return null;
+  }
+}
 
 class TeacherServiceException implements Exception {
   const TeacherServiceException(this.message, {this.statusCode});
@@ -16,7 +57,7 @@ class TeacherServiceException implements Exception {
 }
 
 /// Teacher roli uchun barcha API chaqiruvlar:
-/// guruhlar, davomat, ball qo'yish va to'lov snapshotlari.
+/// guruhlar, davomat va to'lov snapshotlari.
 class TeacherService {
   TeacherService({http.Client? client}) : _client = client ?? http.Client();
 
@@ -96,36 +137,6 @@ class TeacherService {
     _ensureSuccess(response, payload, 'Guruh ma\'lumotlari yuklanmadi');
 
     return TeacherGroupDetail.fromJson(payload);
-  }
-
-  /// O'quvchiga ball qo'shish/ayirish
-  Future<void> createPointEvent(
-    AuthSession session, {
-    required int studentId,
-    required int groupId,
-    required int points,
-    required String title,
-    String? description,
-    String sourceType = 'bonus',
-  }) async {
-    final response = await _client
-        .post(
-          _uri('/api/students/point-events'),
-          headers: _headers(session),
-          body: jsonEncode({
-            'student_id': studentId,
-            'group_id': groupId,
-            'points': points,
-            'title': title,
-            if (description != null && description.trim().isNotEmpty)
-              'description': description.trim(),
-            'source_type': sourceType,
-          }),
-        )
-        .timeout(_timeout);
-
-    final payload = _decodeResponse(response);
-    _ensureSuccess(response, payload, 'Ball qo\'shilmadi');
   }
 
   /// Tanlangan guruhning oylik darslari (schedule bo'yicha avto-generate)
@@ -287,10 +298,38 @@ class TeacherService {
     return report;
   }
 
-  Future<void> deleteLessonStatistics(
+  /// Hisobot ustunlari uchun tayyor turlar ro'yxati (teacher shulardan tanlaydi,
+  /// qo'lda yozmaydi — shu bilan student/ota-onaga doim o'zbekcha nom chiqishi
+  /// kafolatlanadi).
+  Future<List<TeacherReportColumnCatalogEntry>> fetchColumnCatalog(
     AuthSession session,
-    int lessonId,
   ) async {
+    final response = await _client
+        .get(
+          _uri('/api/teacher-statistics/column-catalog'),
+          headers: _headers(session),
+        )
+        .timeout(_timeout);
+
+    final payload = _decodeResponse(response);
+    _ensureSuccess(response, payload, 'Ustun turlari yuklanmadi');
+
+    final data = payload['data'];
+    if (data is! List) return TeacherReportColumnCatalogEntry.fallback();
+    final entries = data
+        .whereType<Map>()
+        .map(
+          (item) => TeacherReportColumnCatalogEntry.fromJson(
+            Map<String, dynamic>.from(item),
+          ),
+        )
+        .toList();
+    return entries.isEmpty
+        ? TeacherReportColumnCatalogEntry.fallback()
+        : entries;
+  }
+
+  Future<void> deleteLessonStatistics(AuthSession session, int lessonId) async {
     final response = await _client
         .delete(
           _uri('/api/teacher-statistics/lessons/$lessonId'),
@@ -432,12 +471,8 @@ class TeacherGroup {
       todayAttendanceFullyCompleted: _asBool(
         json['today_attendance_fully_completed'],
       ),
-      todayReportSent: _asBool(
-        json['today_report_sent'],
-      ),
-      todayReportFullySent: _asBool(
-        json['today_report_fully_sent'],
-      ),
+      todayReportSent: _asBool(json['today_report_sent']),
+      todayReportFullySent: _asBool(json['today_report_fully_sent']),
       scheduleDays: _parseScheduleDays(json['schedule']),
       scheduleTime: _parseScheduleTime(json['schedule']),
     );
@@ -775,6 +810,7 @@ class TeacherLessonStatisticsReport {
     required this.lessonLabel,
     required this.groupName,
     required this.createdAt,
+    required this.columns,
     required this.rows,
   });
 
@@ -782,6 +818,7 @@ class TeacherLessonStatisticsReport {
   final String lessonLabel;
   final String groupName;
   final String createdAt;
+  final List<TeacherLessonStatisticsColumnReport> columns;
   final List<TeacherLessonStatisticsRowReport> rows;
 
   Map<String, dynamic> toJson() => {
@@ -789,16 +826,28 @@ class TeacherLessonStatisticsReport {
     'lesson_label': lessonLabel,
     'group_name': groupName,
     'created_at': createdAt,
+    'columns': columns.map((column) => column.toJson()).toList(),
     'rows': rows.map((row) => row.toJson()).toList(),
   };
 
   factory TeacherLessonStatisticsReport.fromJson(Map<String, dynamic> json) {
+    final columnsRaw = json['columns'];
     final rowsRaw = json['rows'];
     return TeacherLessonStatisticsReport(
       lessonId: _asInt(json['lesson_id']),
       lessonLabel: _asString(json['lesson_label']),
       groupName: _asString(json['group_name']),
       createdAt: _asString(json['created_at']),
+      columns: columnsRaw is List
+          ? columnsRaw
+                .whereType<Map>()
+                .map(
+                  (item) => TeacherLessonStatisticsColumnReport.fromJson(
+                    Map<String, dynamic>.from(item),
+                  ),
+                )
+                .toList()
+          : TeacherLessonStatisticsColumnReport.defaults(),
       rows: rowsRaw is List
           ? rowsRaw
                 .whereType<Map>()
@@ -813,6 +862,203 @@ class TeacherLessonStatisticsReport {
   }
 }
 
+class TeacherLessonStatisticsColumnReport {
+  const TeacherLessonStatisticsColumnReport({
+    required this.key,
+    required this.label,
+    required this.maxValue,
+    required this.enabled,
+  });
+
+  final String key;
+  final String label;
+  final int maxValue;
+  final bool enabled;
+
+  Map<String, dynamic> toJson() => {
+    'key': key,
+    'label': label,
+    'max_value': maxValue,
+    'enabled': enabled,
+  };
+
+  factory TeacherLessonStatisticsColumnReport.fromJson(
+    Map<String, dynamic> json,
+  ) {
+    return TeacherLessonStatisticsColumnReport(
+      key: _asString(json['key']),
+      label: _asString(json['label']),
+      maxValue: _asInt(json['max_value'] ?? json['maxValue'] ?? json['max']),
+      enabled: json['enabled'] != false,
+    );
+  }
+
+  static List<TeacherLessonStatisticsColumnReport> defaults() => const [
+    TeacherLessonStatisticsColumnReport(
+      key: 'homework',
+      label: 'Uy vazifasi',
+      maxValue: 10,
+      enabled: true,
+    ),
+    TeacherLessonStatisticsColumnReport(
+      key: 'vocabulary',
+      label: 'So\'z boyligi',
+      maxValue: 10,
+      enabled: true,
+    ),
+    TeacherLessonStatisticsColumnReport(
+      key: 'attendance',
+      label: 'Davomat',
+      maxValue: 5,
+      enabled: true,
+    ),
+    TeacherLessonStatisticsColumnReport(
+      key: 'participation',
+      label: 'Faollik',
+      maxValue: 10,
+      enabled: true,
+    ),
+  ];
+}
+
+/// Backend `COLUMN_CATALOG`idan bitta tayyor ustun turi. Teacher shu ro'yxatdan
+/// tanlaydi (qo'lda yozmaydi) — `labelUz` doim student/ota-onaga ko'rinadigan nom.
+class TeacherReportColumnCatalogEntry {
+  const TeacherReportColumnCatalogEntry({
+    required this.key,
+    required this.labelUz,
+    required this.labelEn,
+    required this.labelRu,
+    required this.defaultMaxValue,
+    required this.locked,
+  });
+
+  final String key;
+  final String labelUz;
+  final String labelEn;
+  final String labelRu;
+  final int defaultMaxValue;
+  final bool locked;
+
+  /// Teacherga picker'da ko'rsatiladigan matn: asosiy o'zbekcha nom + ingliz/rus
+  /// tilidagi ko'rsatma (turli tilda o'ylaydigan teacher ham tanib olishi uchun).
+  String get pickerLabel => '$labelUz · $labelEn / $labelRu';
+
+  factory TeacherReportColumnCatalogEntry.fromJson(Map<String, dynamic> json) {
+    return TeacherReportColumnCatalogEntry(
+      key: _asString(json['key']),
+      labelUz: _asString(json['label_uz']),
+      labelEn: _asString(json['label_en']),
+      labelRu: _asString(json['label_ru']),
+      defaultMaxValue: _asInt(
+        json['default_max_value'] ?? json['max_value'] ?? 10,
+      ),
+      locked: json['locked'] == true,
+    );
+  }
+
+  /// Tarmoq xatosi bo'lganda ishlatiladigan zaxira ro'yxat — backenddagi
+  /// COLUMN_CATALOG bilan bir xil bo'lishi kerak.
+  static List<TeacherReportColumnCatalogEntry> fallback() => const [
+    TeacherReportColumnCatalogEntry(
+      key: 'homework',
+      labelUz: 'Uy vazifasi',
+      labelEn: 'Homework',
+      labelRu: 'Домашнее задание',
+      defaultMaxValue: 10,
+      locked: false,
+    ),
+    TeacherReportColumnCatalogEntry(
+      key: 'vocabulary',
+      labelUz: 'So\'z boyligi',
+      labelEn: 'Vocabulary',
+      labelRu: 'Словарный запас',
+      defaultMaxValue: 10,
+      locked: false,
+    ),
+    TeacherReportColumnCatalogEntry(
+      key: 'attendance',
+      labelUz: 'Davomat',
+      labelEn: 'Attendance',
+      labelRu: 'Посещаемость',
+      defaultMaxValue: 5,
+      locked: true,
+    ),
+    TeacherReportColumnCatalogEntry(
+      key: 'participation',
+      labelUz: 'Faollik',
+      labelEn: 'Participation',
+      labelRu: 'Активность',
+      defaultMaxValue: 10,
+      locked: false,
+    ),
+    TeacherReportColumnCatalogEntry(
+      key: 'word_memorization',
+      labelUz: 'So\'z yodlash',
+      labelEn: 'Vocabulary memorization',
+      labelRu: 'Заучивание слов',
+      defaultMaxValue: 10,
+      locked: false,
+    ),
+    TeacherReportColumnCatalogEntry(
+      key: 'sentence_building',
+      labelUz: 'Gap tuzish',
+      labelEn: 'Sentence building',
+      labelRu: 'Составление предложений',
+      defaultMaxValue: 10,
+      locked: false,
+    ),
+    TeacherReportColumnCatalogEntry(
+      key: 'listening',
+      labelUz: 'Tinglab tushunish',
+      labelEn: 'Listening',
+      labelRu: 'Аудирование',
+      defaultMaxValue: 10,
+      locked: false,
+    ),
+    TeacherReportColumnCatalogEntry(
+      key: 'speaking',
+      labelUz: 'Nutq',
+      labelEn: 'Speaking',
+      labelRu: 'Устная речь',
+      defaultMaxValue: 10,
+      locked: false,
+    ),
+    TeacherReportColumnCatalogEntry(
+      key: 'reading',
+      labelUz: 'O\'qish',
+      labelEn: 'Reading',
+      labelRu: 'Чтение',
+      defaultMaxValue: 10,
+      locked: false,
+    ),
+    TeacherReportColumnCatalogEntry(
+      key: 'writing',
+      labelUz: 'Yozish',
+      labelEn: 'Writing',
+      labelRu: 'Письмо',
+      defaultMaxValue: 10,
+      locked: false,
+    ),
+    TeacherReportColumnCatalogEntry(
+      key: 'spelling',
+      labelUz: 'Imlo',
+      labelEn: 'Spelling',
+      labelRu: 'Орфография',
+      defaultMaxValue: 10,
+      locked: false,
+    ),
+    TeacherReportColumnCatalogEntry(
+      key: 'test',
+      labelUz: 'Test natijasi',
+      labelEn: 'Test',
+      labelRu: 'Тест',
+      defaultMaxValue: 10,
+      locked: false,
+    ),
+  ];
+}
+
 class TeacherLessonStatisticsRowReport {
   const TeacherLessonStatisticsRowReport({
     required this.studentId,
@@ -824,6 +1070,7 @@ class TeacherLessonStatisticsRowReport {
     required this.total,
     required this.percent,
     required this.feedback,
+    required this.values,
   });
 
   final int studentId;
@@ -835,6 +1082,7 @@ class TeacherLessonStatisticsRowReport {
   final int total;
   final int percent;
   final String feedback;
+  final Map<String, int> values;
 
   Map<String, dynamic> toJson() => {
     'student_id': studentId,
@@ -846,19 +1094,34 @@ class TeacherLessonStatisticsRowReport {
     'total': total,
     'percent': percent,
     'feedback': feedback,
+    'values': values,
   };
 
   factory TeacherLessonStatisticsRowReport.fromJson(Map<String, dynamic> json) {
+    final valuesRaw = json['values'];
+    final values = <String, int>{};
+    if (valuesRaw is Map) {
+      for (final entry in valuesRaw.entries) {
+        values[entry.key.toString()] = _asInt(entry.value);
+      }
+    }
+    values['homework'] = values['homework'] ?? _asInt(json['homework']);
+    values['vocabulary'] = values['vocabulary'] ?? _asInt(json['vocabulary']);
+    values['attendance'] = values['attendance'] ?? _asInt(json['attendance']);
+    values['participation'] =
+        values['participation'] ?? _asInt(json['participation']);
+
     return TeacherLessonStatisticsRowReport(
       studentId: _asInt(json['student_id']),
       studentName: _asString(json['student_name']),
-      homework: _asInt(json['homework']),
-      vocabulary: _asInt(json['vocabulary']),
-      attendance: _asInt(json['attendance']),
-      participation: _asInt(json['participation']),
+      homework: values['homework'] ?? 0,
+      vocabulary: values['vocabulary'] ?? 0,
+      attendance: values['attendance'] ?? 0,
+      participation: values['participation'] ?? 0,
       total: _asInt(json['total']),
       percent: _asInt(json['percent']),
       feedback: _asString(json['feedback']),
+      values: values,
     );
   }
 }

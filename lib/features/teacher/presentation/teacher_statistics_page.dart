@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -62,6 +64,8 @@ class _TeacherStatisticsPageState extends State<TeacherStatisticsPage> {
   int? _selectedGroupId;
   String _month = '';
   bool _didApplyInitialSelection = false;
+  List<TeacherReportColumnCatalogEntry> _columnCatalog =
+      TeacherReportColumnCatalogEntry.fallback();
 
   @override
   void initState() {
@@ -69,6 +73,18 @@ class _TeacherStatisticsPageState extends State<TeacherStatisticsPage> {
     final now = DateTime.now();
     _month = _monthKey(now);
     _groupsFuture = _service.fetchMyGroups(widget.session);
+    _loadColumnCatalog();
+  }
+
+  Future<void> _loadColumnCatalog() async {
+    try {
+      final catalog = await _service.fetchColumnCatalog(widget.session);
+      if (mounted && catalog.isNotEmpty) {
+        setState(() => _columnCatalog = catalog);
+      }
+    } catch (_) {
+      // Tarmoq xatosida zaxira ro'yxat (fallback) bilan davom etiladi.
+    }
   }
 
   @override
@@ -241,6 +257,12 @@ class _TeacherStatisticsPageState extends State<TeacherStatisticsPage> {
       widget.session,
       lesson.id,
     );
+    // Yangi (hali hisoboti yo'q) dars uchun teacher oxirgi safar
+    // ishlatgan ustunlarni taklif qilamiz — har safar standart 4 ta
+    // ustunga qaytarilmasin.
+    final lastUsedColumns = existingReport == null
+        ? await loadLastUsedReportColumns()
+        : null;
     if (!mounted) return;
 
     final result = await showModalBottomSheet<TeacherLessonStatisticsReport>(
@@ -255,6 +277,8 @@ class _TeacherStatisticsPageState extends State<TeacherStatisticsPage> {
           students: students,
           initialReport: existingReport,
           readOnly: readOnly,
+          columnCatalog: _columnCatalog,
+          lastUsedColumns: lastUsedColumns,
         );
       },
     );
@@ -268,6 +292,7 @@ class _TeacherStatisticsPageState extends State<TeacherStatisticsPage> {
         lessonId: lesson.id,
         report: result,
       );
+      unawaited(saveLastUsedReportColumns(savedReport.columns));
     } catch (error) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -1221,7 +1246,10 @@ class _LessonStatisticsCard extends StatelessWidget {
                           minimumSize: const Size(40, 40),
                           maximumSize: const Size(40, 40),
                         ),
-                        child: const Icon(Icons.delete_outline_rounded, size: 16),
+                        child: const Icon(
+                          Icons.delete_outline_rounded,
+                          size: 16,
+                        ),
                       ),
                     ),
                   ],
@@ -1329,27 +1357,91 @@ class _MiniBadge extends StatelessWidget {
   }
 }
 
-class _ScoreControllers {
-  _ScoreControllers({
-    String homework = '',
-    String vocabulary = '',
-    String attendance = '',
-    String participation = '',
-  }) : homework = TextEditingController(text: homework),
-       vocabulary = TextEditingController(text: vocabulary),
-       attendance = TextEditingController(text: attendance),
-       participation = TextEditingController(text: participation);
+class _ReportColumnController {
+  _ReportColumnController({
+    required this.key,
+    required String label,
+    required String maxValue,
+    required this.enabled,
+    required this.locked,
+  }) : labelController = TextEditingController(text: label),
+       maxValueController = TextEditingController(text: maxValue);
 
-  final TextEditingController homework;
-  final TextEditingController vocabulary;
-  final TextEditingController attendance;
-  final TextEditingController participation;
+  final String key;
+  final TextEditingController labelController;
+  final TextEditingController maxValueController;
+  bool enabled;
+  final bool locked;
 
   void dispose() {
-    homework.dispose();
-    vocabulary.dispose();
-    attendance.dispose();
-    participation.dispose();
+    labelController.dispose();
+    maxValueController.dispose();
+  }
+
+  int get maxValue {
+    final parsed = int.tryParse(maxValueController.text.trim()) ?? 10;
+    if (parsed <= 0) return 10;
+    if (parsed > 1000) return 1000;
+    return parsed;
+  }
+}
+
+class _ColumnSettingsDraft {
+  _ColumnSettingsDraft({
+    required this.key,
+    required String label,
+    required String maxValue,
+    required this.enabled,
+    required this.locked,
+  }) : labelController = TextEditingController(text: label),
+       maxValueController = TextEditingController(text: maxValue);
+
+  factory _ColumnSettingsDraft.fromController(_ReportColumnController column) {
+    return _ColumnSettingsDraft(
+      key: column.key,
+      label: column.labelController.text,
+      maxValue: column.maxValueController.text,
+      enabled: column.enabled,
+      locked: column.locked,
+    );
+  }
+
+  /// Teacher dropdown orqali ustun turini o'zgartirganda yangilanadi — shu bois
+  /// `final` emas (label endi erkin matn emas, katalog kalitiga bog'liq).
+  String key;
+  final TextEditingController labelController;
+  final TextEditingController maxValueController;
+  bool enabled;
+  final bool locked;
+
+  void dispose() {
+    labelController.dispose();
+    maxValueController.dispose();
+  }
+
+  int get maxValue {
+    final parsed = int.tryParse(maxValueController.text.trim()) ?? 10;
+    if (parsed <= 0) return 10;
+    if (parsed > 1000) return 1000;
+    return parsed;
+  }
+}
+
+class _StudentScoreControllers {
+  _StudentScoreControllers({
+    required this.studentId,
+    required this.studentName,
+    required this.scores,
+  });
+
+  final int studentId;
+  final String studentName;
+  final Map<String, TextEditingController> scores;
+
+  void dispose() {
+    for (final controller in scores.values) {
+      controller.dispose();
+    }
   }
 }
 
@@ -1360,6 +1452,8 @@ class _LessonStatisticsEditorSheet extends StatefulWidget {
     required this.students,
     required this.initialReport,
     required this.readOnly,
+    required this.columnCatalog,
+    this.lastUsedColumns,
   });
 
   final TeacherLesson lesson;
@@ -1367,6 +1461,11 @@ class _LessonStatisticsEditorSheet extends StatefulWidget {
   final List<LessonStudent> students;
   final TeacherLessonStatisticsReport? initialReport;
   final bool readOnly;
+  final List<TeacherReportColumnCatalogEntry> columnCatalog;
+
+  /// Teacher oldingi darsda saqlagan ustunlar — yangi (hisoboti yo'q)
+  /// darsni ochganda standart 4 ta ustun o'rniga shu taklif etiladi.
+  final List<TeacherLessonStatisticsColumnReport>? lastUsedColumns;
 
   @override
   State<_LessonStatisticsEditorSheet> createState() =>
@@ -1375,57 +1474,142 @@ class _LessonStatisticsEditorSheet extends StatefulWidget {
 
 class _LessonStatisticsEditorSheetState
     extends State<_LessonStatisticsEditorSheet> {
-  static const int _maxHomework = 10;
-  static const int _maxVocabulary = 10;
-  static const int _maxAttendance = 5;
-  static const int _maxParticipation = 10;
-  static const int _maxTotal =
-      _maxHomework + _maxVocabulary + _maxAttendance + _maxParticipation;
-
-  late final List<_ScoreControllers> _controllers;
+  late final List<_ReportColumnController> _columns;
+  late final List<_StudentScoreControllers> _controllers;
   late final Map<int, TeacherLessonStatisticsRowReport> _initialRowsById;
   late final bool _readOnly;
+  late final List<TeacherReportColumnCatalogEntry> _catalog;
+
+  TeacherReportColumnCatalogEntry _catalogEntryForKey(String key) {
+    for (final entry in _catalog) {
+      if (entry.key == key) return entry;
+    }
+    return _catalog.first;
+  }
+
+  List<_ReportColumnController> get _enabledColumns =>
+      _columns.where((column) => column.enabled).toList();
+
+  int get _maxTotal =>
+      _enabledColumns.fold(0, (sum, column) => sum + column.maxValue);
+
+  int get _attendanceMax {
+    for (final column in _columns) {
+      if (column.key == 'attendance') return column.maxValue;
+    }
+    return 5;
+  }
 
   double get _statisticsTableWidth =>
       _statisticsStudentColumnWidth +
-      (_statisticsScoreColumnWidth * 4) +
+      (_statisticsScoreColumnWidth * _enabledColumns.length) +
       _statisticsTotalColumnWidth +
       _statisticsPercentColumnWidth +
       _statisticsFeedbackColumnWidth +
-      (_statisticsColumnGap * 7) +
+      (_statisticsColumnGap * (_enabledColumns.length + 4)) +
       (_statisticsHorizontalPadding * 2);
 
   @override
   void initState() {
     super.initState();
     _readOnly = widget.readOnly;
+    _catalog = widget.columnCatalog.isEmpty
+        ? TeacherReportColumnCatalogEntry.fallback()
+        : widget.columnCatalog;
     _initialRowsById = {
       for (final row in widget.initialReport?.rows ?? const [])
         row.studentId: row,
     };
+    _columns = _buildInitialColumns();
     _controllers = [
       for (final student in widget.students)
         _buildControllersForStudent(student),
     ];
   }
 
-  _ScoreControllers _buildControllersForStudent(LessonStudent student) {
+  List<_ReportColumnController> _buildInitialColumns() {
+    final source = widget.initialReport?.columns.isNotEmpty == true
+        ? widget.initialReport!.columns
+        : (widget.lastUsedColumns?.isNotEmpty == true
+              ? widget.lastUsedColumns!
+              : TeacherLessonStatisticsColumnReport.defaults());
+    final sourceByKey = {for (final column in source) column.key: column};
+    final defaultByKey = {
+      for (final column in TeacherLessonStatisticsColumnReport.defaults())
+        column.key: column,
+    };
+    final preferredOrder = <String>[
+      'homework',
+      'vocabulary',
+      'attendance',
+      'participation',
+    ];
+    final ordered = <TeacherLessonStatisticsColumnReport>[];
+    for (final key in preferredOrder) {
+      ordered.add(sourceByKey[key] ?? defaultByKey[key]!);
+    }
+    for (final column in source) {
+      if (!preferredOrder.contains(column.key)) {
+        ordered.add(column);
+      }
+    }
+
+    return ordered
+        .map(
+          (column) => _ReportColumnController(
+            key: column.key,
+            label: column.label,
+            maxValue: column.maxValue.toString(),
+            enabled: column.key == 'attendance' ? true : column.enabled,
+            locked: column.key == 'attendance',
+          ),
+        )
+        .toList();
+  }
+
+  _StudentScoreControllers _buildControllersForStudent(LessonStudent student) {
     final row = _initialRowsById[student.studentId];
-    final attendance =
-        row?.attendance.toString() ??
-        _defaultAttendanceForStudent(student).toString();
-    return _ScoreControllers(
-      homework: row?.homework.toString() ?? '',
-      vocabulary: row?.vocabulary.toString() ?? '',
-      attendance: attendance,
-      participation: row?.participation.toString() ?? '',
+    final scores = <String, TextEditingController>{};
+    for (final column in _columns) {
+      scores[column.key] = TextEditingController(
+        text: _initialValueForColumn(column, student, row),
+      );
+    }
+    return _StudentScoreControllers(
+      studentId: student.studentId,
+      studentName: student.studentName,
+      scores: scores,
     );
+  }
+
+  String _initialValueForColumn(
+    _ReportColumnController column,
+    LessonStudent student,
+    TeacherLessonStatisticsRowReport? row,
+  ) {
+    final values = row?.values;
+    final directValue = values?[column.key];
+    if (directValue != null) return directValue.toString();
+
+    switch (column.key) {
+      case 'homework':
+        return row?.homework.toString() ?? '';
+      case 'vocabulary':
+        return row?.vocabulary.toString() ?? '';
+      case 'attendance':
+        return row?.attendance.toString() ??
+            _defaultAttendanceForStudent(student).toString();
+      case 'participation':
+        return row?.participation.toString() ?? '';
+      default:
+        return '';
+    }
   }
 
   int _defaultAttendanceForStudent(LessonStudent student) {
     final status = student.status.trim().toLowerCase();
-    if (status == 'keldi') return _maxAttendance;
-    if (status == 'kechikdi') return (_maxAttendance / 2).ceil();
+    if (status == 'keldi') return _attendanceMax;
+    if (status == 'kechikdi') return (_attendanceMax / 2).ceil();
     return 0;
   }
 
@@ -1433,6 +1617,9 @@ class _LessonStatisticsEditorSheetState
   void dispose() {
     for (final controller in _controllers) {
       controller.dispose();
+    }
+    for (final column in _columns) {
+      column.dispose();
     }
     super.dispose();
   }
@@ -1444,11 +1631,16 @@ class _LessonStatisticsEditorSheetState
     return value;
   }
 
-  int _totalFor(_ScoreControllers controllers) =>
-      _parseScore(controllers.homework.text, _maxHomework) +
-      _parseScore(controllers.vocabulary.text, _maxVocabulary) +
-      _parseScore(controllers.attendance.text, _maxAttendance) +
-      _parseScore(controllers.participation.text, _maxParticipation);
+  int _totalFor(_StudentScoreControllers controllers) {
+    var total = 0;
+    for (final column in _enabledColumns) {
+      total += _parseScore(
+        controllers.scores[column.key]?.text ?? '',
+        column.maxValue,
+      );
+    }
+    return total;
+  }
 
   int _percentFor(int total) =>
       ((_maxTotal == 0 ? 0 : total / _maxTotal) * 100).round().clamp(0, 100);
@@ -1470,29 +1662,466 @@ class _LessonStatisticsEditorSheetState
     }
   }
 
-  void _showColumnHelp(
-    String shortTitle,
-    String fullTitle,
-    String description,
-  ) {
-    showDialog<void>(
+  Future<void> _showColumnSettingsModal() async {
+    if (_readOnly) return;
+    final drafts = _columns
+        .map((column) => _ColumnSettingsDraft.fromController(column))
+        .toList();
+
+    final saved = await showModalBottomSheet<bool>(
       context: context,
-      builder: (dialogContext) {
-        return AlertDialog(
-          title: Text(fullTitle),
-          content: Text(
-            '$shortTitle — $description',
-            style: const TextStyle(fontSize: 13),
-          ),
-          actions: [
-            FilledButton(
-              onPressed: () => Navigator.of(dialogContext).pop(),
-              child: const Text('Yopish'),
+      isScrollControlled: true,
+      useSafeArea: true,
+      backgroundColor: Colors.transparent,
+      builder: (modalContext) {
+        return FractionallySizedBox(
+          heightFactor: 0.9,
+          child: Material(
+            color: const Color(0xFFF6F7FB),
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+            clipBehavior: Clip.antiAlias,
+            child: StatefulBuilder(
+              builder: (context, setModalState) {
+                return SafeArea(
+                  top: false,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+                        child: Row(
+                          children: [
+                            const Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    'Ustunlarni sozlash',
+                                    style: TextStyle(
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.w900,
+                                      color: Color(0xFF182033),
+                                    ),
+                                  ),
+                                  SizedBox(height: 2),
+                                  Text(
+                                    'Davomat doim ko\'rsatiladi',
+                                    style: TextStyle(
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w600,
+                                      color: Color(0xFF64748B),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            IconButton(
+                              onPressed: () => Navigator.of(modalContext).pop(),
+                              icon: const Icon(Icons.close_rounded),
+                            ),
+                          ],
+                        ),
+                      ),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: OutlinedButton.icon(
+                                onPressed: () {
+                                  final usedKeys = drafts
+                                      .map((draft) => draft.key)
+                                      .toSet();
+                                  final available = _catalog
+                                      .where(
+                                        (entry) =>
+                                            !usedKeys.contains(entry.key),
+                                      )
+                                      .toList();
+                                  if (available.isEmpty) return;
+                                  final entry = available.first;
+                                  setModalState(() {
+                                    drafts.add(
+                                      _ColumnSettingsDraft(
+                                        key: entry.key,
+                                        label: entry.labelUz,
+                                        maxValue: entry.defaultMaxValue
+                                            .toString(),
+                                        enabled: true,
+                                        locked: false,
+                                      ),
+                                    );
+                                  });
+                                },
+                                icon: const Icon(Icons.add_rounded, size: 18),
+                                label: const Text('Qo\'shish'),
+                                style: OutlinedButton.styleFrom(
+                                  foregroundColor: AppTheme.brandColor,
+                                  side: const BorderSide(
+                                    color: Color(0xFFD6DDEA),
+                                  ),
+                                  padding: const EdgeInsets.symmetric(
+                                    vertical: 12,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      Expanded(
+                        child: ListView.separated(
+                          padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                          itemCount: drafts.length,
+                          separatorBuilder: (context, index) =>
+                              const SizedBox(height: 10),
+                          itemBuilder: (context, index) {
+                            final column = drafts[index];
+                            return Container(
+                              padding: const EdgeInsets.all(12),
+                              decoration: BoxDecoration(
+                                color: Colors.white,
+                                borderRadius: BorderRadius.circular(18),
+                                border: Border.all(
+                                  color: const Color(0xFFE4E9F1),
+                                ),
+                              ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Row(
+                                    children: [
+                                      Expanded(
+                                        child: column.locked
+                                            ? TextFormField(
+                                                controller:
+                                                    column.labelController,
+                                                enabled: false,
+                                                decoration:
+                                                    const InputDecoration(
+                                                      isDense: true,
+                                                      labelText: 'Nomi',
+                                                      filled: true,
+                                                      fillColor: Color(
+                                                        0xFFF3F4F6,
+                                                      ),
+                                                      border:
+                                                          OutlineInputBorder(),
+                                                    ),
+                                                style: const TextStyle(
+                                                  fontSize: 12,
+                                                  fontWeight: FontWeight.w800,
+                                                ),
+                                              )
+                                            : Builder(
+                                                builder: (context) {
+                                                  final usedByOthers = drafts
+                                                      .where(
+                                                        (d) => d != column,
+                                                      )
+                                                      .map((d) => d.key)
+                                                      .toSet();
+                                                  final isLegacyKey = _catalog
+                                                      .every(
+                                                        (entry) =>
+                                                            entry.key !=
+                                                            column.key,
+                                                      );
+                                                  final items =
+                                                      <
+                                                        DropdownMenuItem<
+                                                          String
+                                                        >
+                                                      >[
+                                                        if (isLegacyKey)
+                                                          DropdownMenuItem(
+                                                            value: column.key,
+                                                            child: Text(
+                                                              '${column.labelController.text.trim().isEmpty ? column.key : column.labelController.text.trim()} (eski)',
+                                                              style: const TextStyle(
+                                                                fontSize: 12,
+                                                                fontWeight:
+                                                                    FontWeight
+                                                                        .w800,
+                                                              ),
+                                                              overflow:
+                                                                  TextOverflow
+                                                                      .ellipsis,
+                                                            ),
+                                                          ),
+                                                        for (final entry
+                                                            in _catalog.where(
+                                                              (entry) =>
+                                                                  entry.key ==
+                                                                      column
+                                                                          .key ||
+                                                                  !usedByOthers
+                                                                      .contains(
+                                                                        entry
+                                                                            .key,
+                                                                      ),
+                                                            ))
+                                                          DropdownMenuItem(
+                                                            value: entry.key,
+                                                            child: Text(
+                                                              entry
+                                                                  .pickerLabel,
+                                                              style: const TextStyle(
+                                                                fontSize: 12,
+                                                                fontWeight:
+                                                                    FontWeight
+                                                                        .w800,
+                                                              ),
+                                                              overflow:
+                                                                  TextOverflow
+                                                                      .ellipsis,
+                                                            ),
+                                                          ),
+                                                      ];
+                                                  return DropdownButtonFormField<
+                                                    String
+                                                  >(
+                                                    key: ValueKey(column),
+                                                    initialValue: column.key,
+                                                    isExpanded: true,
+                                                    decoration:
+                                                        const InputDecoration(
+                                                          isDense: true,
+                                                          labelText: 'Turi',
+                                                          border:
+                                                              OutlineInputBorder(),
+                                                        ),
+                                                    items: items,
+                                                    onChanged: (value) {
+                                                      if (value == null ||
+                                                          value ==
+                                                              column.key) {
+                                                        return;
+                                                      }
+                                                      final entry =
+                                                          _catalogEntryForKey(
+                                                            value,
+                                                          );
+                                                      setModalState(() {
+                                                        column.key =
+                                                            entry.key;
+                                                        column
+                                                                .labelController
+                                                                .text =
+                                                            entry.labelUz;
+                                                        column
+                                                                .maxValueController
+                                                                .text =
+                                                            entry
+                                                                .defaultMaxValue
+                                                                .toString();
+                                                      });
+                                                    },
+                                                  );
+                                                },
+                                              ),
+                                      ),
+                                      const SizedBox(width: 8),
+                                      if (column.locked)
+                                        Container(
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 10,
+                                            vertical: 8,
+                                          ),
+                                          decoration: BoxDecoration(
+                                            color: const Color(0xFFF1F5F9),
+                                            borderRadius: BorderRadius.circular(
+                                              999,
+                                            ),
+                                          ),
+                                          child: const Text(
+                                            'Majburiy',
+                                            style: TextStyle(
+                                              fontSize: 10,
+                                              fontWeight: FontWeight.w800,
+                                              color: Color(0xFF475569),
+                                            ),
+                                          ),
+                                        )
+                                      else
+                                        IconButton(
+                                          onPressed: () {
+                                            setModalState(() {
+                                              final removed = drafts.removeAt(
+                                                index,
+                                              );
+                                              removed.dispose();
+                                            });
+                                          },
+                                          icon: const Icon(
+                                            Icons.delete_outline_rounded,
+                                          ),
+                                          color: const Color(0xFFDC2626),
+                                          tooltip: 'Ustunni olib tashlash',
+                                        ),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 8),
+                                  TextFormField(
+                                    controller: column.maxValueController,
+                                    enabled: !column.locked,
+                                    keyboardType: TextInputType.number,
+                                    inputFormatters: [
+                                      FilteringTextInputFormatter.digitsOnly,
+                                    ],
+                                    onChanged: (_) => setModalState(() {}),
+                                    decoration: InputDecoration(
+                                      isDense: true,
+                                      labelText: 'Maksimal ball',
+                                      filled: column.locked,
+                                      fillColor: column.locked
+                                          ? const Color(0xFFF3F4F6)
+                                          : null,
+                                      border: const OutlineInputBorder(),
+                                    ),
+                                    style: const TextStyle(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w800,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 10),
+                                  Row(
+                                    children: [
+                                      Expanded(
+                                        child: Text(
+                                          column.locked
+                                              ? 'Doim ko\'rsatiladi'
+                                              : (column.enabled
+                                                    ? 'Ko‘rsatiladi'
+                                                    : 'Yashirilgan'),
+                                          style: const TextStyle(
+                                            fontSize: 11,
+                                            fontWeight: FontWeight.w700,
+                                            color: Color(0xFF64748B),
+                                          ),
+                                        ),
+                                      ),
+                                      Switch.adaptive(
+                                        value: column.locked
+                                            ? true
+                                            : column.enabled,
+                                        onChanged: column.locked
+                                            ? null
+                                            : (value) {
+                                                setModalState(() {
+                                                  column.enabled = value;
+                                                });
+                                              },
+                                        activeThumbColor: AppTheme.brandColor,
+                                      ),
+                                    ],
+                                  ),
+                                ],
+                              ),
+                            );
+                          },
+                        ),
+                      ),
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: OutlinedButton(
+                                onPressed: () =>
+                                    Navigator.of(modalContext).pop(false),
+                                style: OutlinedButton.styleFrom(
+                                  foregroundColor: const Color(0xFF64748B),
+                                  side: const BorderSide(
+                                    color: Color(0xFFD6DDEA),
+                                  ),
+                                  padding: const EdgeInsets.symmetric(
+                                    vertical: 12,
+                                  ),
+                                ),
+                                child: const Text('Bekor qilish'),
+                              ),
+                            ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: FilledButton(
+                                onPressed: () {
+                                  _applyColumnDrafts(drafts);
+                                  Navigator.of(modalContext).pop(true);
+                                },
+                                style: FilledButton.styleFrom(
+                                  backgroundColor: AppTheme.brandColor,
+                                  foregroundColor: Colors.white,
+                                  padding: const EdgeInsets.symmetric(
+                                    vertical: 12,
+                                  ),
+                                ),
+                                child: const Text('Saqlash'),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              },
             ),
-          ],
+          ),
         );
       },
     );
+
+    for (final draft in drafts) {
+      draft.dispose();
+    }
+    if (saved == true && mounted) {
+      setState(() {});
+    }
+  }
+
+  void _applyColumnDrafts(List<_ColumnSettingsDraft> drafts) {
+    final existingByKey = {for (final column in _columns) column.key: column};
+    final draftKeys = drafts.map((draft) => draft.key).toSet();
+    final newColumns = <_ReportColumnController>[];
+
+    for (final draft in drafts) {
+      final existing = existingByKey[draft.key];
+      if (existing != null) {
+        existing.labelController.text = draft.labelController.text;
+        existing.maxValueController.text = draft.maxValueController.text;
+        existing.enabled = draft.locked ? true : draft.enabled;
+        newColumns.add(existing);
+        continue;
+      }
+
+      final created = _ReportColumnController(
+        key: draft.key,
+        label: draft.labelController.text,
+        maxValue: draft.maxValueController.text,
+        enabled: draft.locked ? true : draft.enabled,
+        locked: draft.locked,
+      );
+      newColumns.add(created);
+      for (final studentController in _controllers) {
+        studentController.scores[draft.key] ??= TextEditingController(text: '');
+      }
+    }
+
+    final removedColumns = _columns
+        .where((column) => !draftKeys.contains(column.key))
+        .toList();
+    for (final column in removedColumns) {
+      for (final studentController in _controllers) {
+        studentController.scores.remove(column.key)?.dispose();
+      }
+      column.dispose();
+    }
+
+    _columns
+      ..clear()
+      ..addAll(newColumns);
   }
 
   TeacherLessonStatisticsReport _buildReport() {
@@ -1500,32 +2129,33 @@ class _LessonStatisticsEditorSheetState
     for (var i = 0; i < widget.students.length; i++) {
       final student = widget.students[i];
       final controllers = _controllers[i];
-      final homework = _parseScore(controllers.homework.text, _maxHomework);
-      final vocabulary = _parseScore(
-        controllers.vocabulary.text,
-        _maxVocabulary,
+      final values = <String, int>{};
+
+      for (final column in _columns) {
+        values[column.key] = _parseScore(
+          controllers.scores[column.key]?.text ?? '',
+          column.maxValue,
+        );
+      }
+
+      final total = _enabledColumns.fold(
+        0,
+        (sum, column) => sum + (values[column.key] ?? 0),
       );
-      final attendance = _parseScore(
-        controllers.attendance.text,
-        _maxAttendance,
-      );
-      final participation = _parseScore(
-        controllers.participation.text,
-        _maxParticipation,
-      );
-      final total = homework + vocabulary + attendance + participation;
       final percent = _percentFor(total);
+
       rows.add(
         TeacherLessonStatisticsRowReport(
           studentId: student.studentId,
           studentName: student.studentName,
-          homework: homework,
-          vocabulary: vocabulary,
-          attendance: attendance,
-          participation: participation,
+          homework: values['homework'] ?? 0,
+          vocabulary: values['vocabulary'] ?? 0,
+          attendance: values['attendance'] ?? 0,
+          participation: values['participation'] ?? 0,
           total: total,
           percent: percent,
           feedback: _feedbackFor(percent),
+          values: values,
         ),
       );
     }
@@ -1536,6 +2166,20 @@ class _LessonStatisticsEditorSheetState
           '${widget.lesson.formattedDate} • ${widget.lesson.weekdayName}',
       groupName: widget.groupName,
       createdAt: DateTime.now().toIso8601String(),
+      columns: _columns
+          .asMap()
+          .entries
+          .map(
+            (entry) => TeacherLessonStatisticsColumnReport(
+              key: entry.value.key,
+              label: entry.value.labelController.text.trim().isEmpty
+                  ? entry.value.key.toUpperCase()
+                  : entry.value.labelController.text.trim(),
+              maxValue: entry.value.maxValue,
+              enabled: entry.value.enabled,
+            ),
+          )
+          .toList(),
       rows: rows,
     );
   }
@@ -1543,53 +2187,42 @@ class _LessonStatisticsEditorSheetState
   Widget _headerCell(
     String title, {
     String? subtitle,
-    String? fullTitle,
-    String? description,
     double width = 60,
     Alignment alignment = Alignment.center,
   }) {
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: fullTitle == null || description == null
-            ? null
-            : () => _showColumnHelp(title, fullTitle, description),
-        borderRadius: BorderRadius.circular(10),
-        child: Container(
-          width: width,
-          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
-          alignment: alignment,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                title,
-                textAlign: TextAlign.center,
-                maxLines: 1,
-                softWrap: false,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                  fontSize: 7.0,
-                  fontWeight: FontWeight.w900,
-                  color: Colors.white,
-                  height: 1.0,
-                ),
-              ),
-              if (subtitle != null) ...[
-                const SizedBox(height: 1),
-                Text(
-                  subtitle,
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    fontSize: 6.8,
-                    fontWeight: FontWeight.w700,
-                    color: Colors.white.withValues(alpha: 0.8),
-                  ),
-                ),
-              ],
-            ],
+    return Container(
+      width: width,
+      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
+      alignment: alignment,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            title,
+            textAlign: TextAlign.center,
+            maxLines: 2,
+            softWrap: true,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(
+              fontSize: 7.0,
+              fontWeight: FontWeight.w900,
+              color: Colors.white,
+              height: 1.0,
+            ),
           ),
-        ),
+          if (subtitle != null) ...[
+            const SizedBox(height: 1),
+            Text(
+              subtitle,
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 6.8,
+                fontWeight: FontWeight.w700,
+                color: Colors.white.withValues(alpha: 0.8),
+              ),
+            ),
+          ],
+        ],
       ),
     );
   }
@@ -1639,6 +2272,27 @@ class _LessonStatisticsEditorSheetState
     if (parts.isEmpty || parts.first.isEmpty) return const <String>[];
     if (parts.length == 1) return [parts.first];
     return [parts.first, parts.skip(1).join(' ')];
+  }
+
+  Widget _buildColumnSettingsButton() {
+    if (_readOnly) return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: Align(
+        alignment: Alignment.centerRight,
+        child: TextButton.icon(
+          onPressed: _showColumnSettingsModal,
+          style: TextButton.styleFrom(
+            foregroundColor: AppTheme.brandColor,
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            backgroundColor: Colors.white,
+            side: const BorderSide(color: Color(0xFFD6DDEA)),
+          ),
+          icon: const Icon(Icons.tune_rounded, size: 18),
+          label: const Text('Ustunlarni sozlash'),
+        ),
+      ),
+    );
   }
 
   Widget _studentRow(int index) {
@@ -1697,42 +2351,17 @@ class _LessonStatisticsEditorSheetState
             ),
           ),
           const SizedBox(width: _statisticsColumnGap),
-          SizedBox(
-            width: _statisticsScoreColumnWidth,
-            child: _scoreField(
-              controller: controllers.homework,
-              maxValue: _maxHomework,
-              enabled: !_readOnly,
+          for (final column in _enabledColumns) ...[
+            SizedBox(
+              width: _statisticsScoreColumnWidth,
+              child: _scoreField(
+                controller: controllers.scores[column.key]!,
+                maxValue: column.maxValue,
+                enabled: !_readOnly,
+              ),
             ),
-          ),
-          const SizedBox(width: _statisticsColumnGap),
-          SizedBox(
-            width: _statisticsScoreColumnWidth,
-            child: _scoreField(
-              controller: controllers.vocabulary,
-              maxValue: _maxVocabulary,
-              enabled: !_readOnly,
-            ),
-          ),
-          const SizedBox(width: _statisticsColumnGap),
-          SizedBox(
-            width: _statisticsScoreColumnWidth,
-            child: _scoreField(
-              controller: controllers.attendance,
-              maxValue: _maxAttendance,
-              enabled: !_readOnly,
-            ),
-          ),
-          const SizedBox(width: _statisticsColumnGap),
-          SizedBox(
-            width: _statisticsScoreColumnWidth,
-            child: _scoreField(
-              controller: controllers.participation,
-              maxValue: _maxParticipation,
-              enabled: !_readOnly,
-            ),
-          ),
-          const SizedBox(width: _statisticsColumnGap),
+            const SizedBox(width: _statisticsColumnGap),
+          ],
           SizedBox(
             width: _statisticsTotalColumnWidth,
             child: Text(
@@ -1785,6 +2414,7 @@ class _LessonStatisticsEditorSheetState
 
   @override
   Widget build(BuildContext context) {
+    final enabledColumns = _enabledColumns;
     return FractionallySizedBox(
       heightFactor: 0.95,
       child: Material(
@@ -1871,6 +2501,8 @@ class _LessonStatisticsEditorSheetState
                   ),
                 ),
               ),
+              const SizedBox(height: 10),
+              _buildColumnSettingsButton(),
               const SizedBox(height: 12),
               Expanded(
                 child: LayoutBuilder(
@@ -1897,71 +2529,38 @@ class _LessonStatisticsEditorSheetState
                                       'STUDENTS',
                                       width: _statisticsStudentColumnWidth,
                                       alignment: Alignment.centerLeft,
-                                      fullTitle: 'Students',
-                                      description:
-                                          'O\'quvchi ismi va familiyasi',
                                     ),
                                     const SizedBox(width: _statisticsColumnGap),
-                                    _headerCell(
-                                      'HK',
-                                      width: _statisticsScoreColumnWidth,
-                                      subtitle: '10',
-                                      fullTitle: 'Homework',
-                                      description:
-                                          'Uy vazifasi uchun berilgan ball',
-                                    ),
-                                    const SizedBox(width: _statisticsColumnGap),
-                                    _headerCell(
-                                      'VOCAB',
-                                      width: _statisticsScoreColumnWidth,
-                                      subtitle: '10',
-                                      fullTitle: 'Vocabulary',
-                                      description:
-                                          'So\'z boyligi uchun berilgan ball',
-                                    ),
-                                    const SizedBox(width: _statisticsColumnGap),
-                                    _headerCell(
-                                      'ATTEND',
-                                      width: _statisticsScoreColumnWidth,
-                                      subtitle: '5',
-                                      fullTitle: 'Attendance',
-                                      description:
-                                          'Davomat va darsga qatnashuv balli',
-                                    ),
-                                    const SizedBox(width: _statisticsColumnGap),
-                                    _headerCell(
-                                      'PART',
-                                      width: _statisticsScoreColumnWidth,
-                                      subtitle: '10',
-                                      fullTitle: 'Participation',
-                                      description:
-                                          'Darsdagi faollik va qatnashuv balli',
-                                    ),
-                                    const SizedBox(width: _statisticsColumnGap),
+                                    for (final column in enabledColumns) ...[
+                                      _headerCell(
+                                        column.labelController.text
+                                                .trim()
+                                                .isEmpty
+                                            ? column.key.toUpperCase()
+                                            : column.labelController.text
+                                                  .trim(),
+                                        width: _statisticsScoreColumnWidth,
+                                        subtitle: column.maxValue.toString(),
+                                      ),
+                                      const SizedBox(
+                                        width: _statisticsColumnGap,
+                                      ),
+                                    ],
                                     _headerCell(
                                       'TOT',
                                       width: _statisticsTotalColumnWidth,
-                                      subtitle: '35',
-                                      fullTitle: 'Total',
-                                      description:
-                                          'Barcha ustunlar yig\'indisi',
+                                      subtitle: _maxTotal.toString(),
                                     ),
                                     const SizedBox(width: _statisticsColumnGap),
                                     _headerCell(
                                       'PCT',
                                       width: _statisticsPercentColumnWidth,
                                       subtitle: '100%',
-                                      fullTitle: 'Percent',
-                                      description:
-                                          'To\'plangan ballning foiz ko\'rinishi',
                                     ),
                                     const SizedBox(width: _statisticsColumnGap),
                                     _headerCell(
                                       'FB',
                                       width: _statisticsFeedbackColumnWidth,
-                                      fullTitle: 'Feedback',
-                                      description:
-                                          'Avtomatik baho: BAD, GOOD yoki PERFECT',
                                     ),
                                   ],
                                 ),
