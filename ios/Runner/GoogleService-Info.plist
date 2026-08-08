@@ -9,7 +9,7 @@
 	<key>PLIST_VERSION</key>
 	<string>1</string>
 	<key>BUNDLE_ID</key>
-	<string>com.example.taraqqiyotMobile</string>
+	<string>uz.taraqqiyot.mobile</string>
 	<key>PROJECT_ID</key>
 	<string>taraqqiyot-teaching-center</string>
 	<key>STORAGE_BUCKET</key>
@@ -25,6 +25,6 @@
 	<key>IS_SIGNIN_ENABLED</key>
 	<true></true>
 	<key>GOOGLE_APP_ID</key>
-	<string>1:706164682164:ios:4da7e371b80baf55a7d6e1</string>
+	<string>1:706164682164:ios:fb92b005d4188f04a7d6e1</string>
 </dict>
 </plist>
