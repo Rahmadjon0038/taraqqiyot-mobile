@@ -456,8 +456,6 @@ class _StudentPointReportsPageState extends State<StudentPointReportsPage> {
                                     ),
                                     const SizedBox(height: 12),
                                     _BreakdownCard(breakdown: report.breakdown),
-                                    const SizedBox(height: 12),
-                                    _EventsCard(events: report.events),
                                   ],
                                 );
 
@@ -859,172 +857,6 @@ class _BreakdownCard extends StatelessWidget {
   }
 }
 
-class _EventsCard extends StatelessWidget {
-  const _EventsCard({required this.events});
-
-  final List<StudentPointEvent> events;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFFE6EBF3)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const _SectionHeader(
-            icon: Icons.history_rounded,
-            title: 'So\'nggi yozuvlar',
-          ),
-          const SizedBox(height: 12),
-          if (events.isEmpty)
-            const Text(
-              'Hozircha yozuv yo\'q',
-              style: TextStyle(
-                fontSize: 12.5,
-                fontWeight: FontWeight.w600,
-                color: Color(0xFF7B8495),
-              ),
-            )
-          else
-            for (var i = 0; i < events.length; i++) ...[
-              _EventRow(event: events[i]),
-              if (i < events.length - 1) ...[
-                const SizedBox(height: 10),
-                const Divider(height: 1, color: Color(0xFFEDF1F7)),
-                const SizedBox(height: 10),
-              ],
-            ],
-        ],
-      ),
-    );
-  }
-}
-
-/// Bitta ball yozuvi: ball belgisi, sarlavha, teacher izohi va vaqt
-class _EventRow extends StatelessWidget {
-  const _EventRow({required this.event});
-
-  final StudentPointEvent event;
-
-  @override
-  Widget build(BuildContext context) {
-    final positive = event.points >= 0;
-    final color = positive ? const Color(0xFF16934F) : const Color(0xFFDC2626);
-
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Container(
-          width: 38,
-          height: 38,
-          decoration: BoxDecoration(
-            color: color.withValues(alpha: 0.08),
-            borderRadius: BorderRadius.circular(16),
-          ),
-          alignment: Alignment.center,
-          child: Text(
-            positive ? '+${event.points}' : '${event.points}',
-            style: TextStyle(
-              fontSize: 11.5,
-              fontWeight: FontWeight.w900,
-              color: color,
-            ),
-          ),
-        ),
-        const SizedBox(width: 10),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      event.title,
-                      style: const TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w800,
-                        color: Color(0xFF182033),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Text(
-                    event.dayKey == _todayKey()
-                        ? 'Bugun, ${event.createdTime}'
-                        : '${_dayShortLabel(event.dayKey)}-kun, ${event.createdTime}',
-                    style: const TextStyle(
-                      fontSize: 10,
-                      fontWeight: FontWeight.w700,
-                      color: Color(0xFF8A93A5),
-                    ),
-                  ),
-                ],
-              ),
-              if (event.groupName.isNotEmpty) ...[
-                const SizedBox(height: 2),
-                Text(
-                  event.groupName,
-                  style: const TextStyle(
-                    fontSize: 10.5,
-                    fontWeight: FontWeight.w600,
-                    color: Color(0xFF8A93A5),
-                  ),
-                ),
-              ],
-              // Teacher yozgan izoh — alohida ajralib turadigan blok
-              if (event.description.trim().isNotEmpty) ...[
-                const SizedBox(height: 6),
-                Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 10,
-                    vertical: 8,
-                  ),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFF6F8FB),
-                    borderRadius: BorderRadius.circular(16),
-                    border: const Border(
-                      left: BorderSide(color: Color(0xFFA70E07), width: 3),
-                    ),
-                  ),
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Icon(
-                        Icons.chat_bubble_outline_rounded,
-                        size: 13,
-                        color: Color(0xFF7B8495),
-                      ),
-                      const SizedBox(width: 6),
-                      Expanded(
-                        child: Text(
-                          event.description.trim(),
-                          style: const TextStyle(
-                            fontSize: 11.5,
-                            fontWeight: FontWeight.w600,
-                            color: Color(0xFF3A4454),
-                            height: 1.35,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-}
-
 class _LessonReportsCard extends StatelessWidget {
   const _LessonReportsCard({
     required this.reports,
@@ -1135,6 +967,9 @@ class _LessonReportTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final tone = _reportTone(report.feedback);
+    final visibleColumns = report.columns
+        .where((column) => column.enabled)
+        .toList();
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
@@ -1219,15 +1054,13 @@ class _LessonReportTile extends StatelessWidget {
                         headingRowHeight: 36,
                         dataRowMinHeight: 36,
                         dataRowMaxHeight: 48,
-                        columns: const [
-                          DataColumn(label: Text('Talaba')),
-                          DataColumn(label: Text('Uy vazifasi')),
-                          DataColumn(label: Text('So\'z boyligi')),
-                          DataColumn(label: Text('Davomat')),
-                          DataColumn(label: Text('Faollik')),
-                          DataColumn(label: Text('Jami')),
-                          DataColumn(label: Text('Foiz')),
-                          DataColumn(label: Text('Baho')),
+                        columns: [
+                          const DataColumn(label: Text('Talaba')),
+                          for (final column in visibleColumns)
+                            DataColumn(label: Text(column.label)),
+                          const DataColumn(label: Text('Jami')),
+                          const DataColumn(label: Text('Foiz')),
+                          const DataColumn(label: Text('Baho')),
                         ],
                         rows: report.rows
                             .map(
@@ -1243,10 +1076,10 @@ class _LessonReportTile extends StatelessWidget {
                                       ),
                                     ),
                                   ),
-                                  DataCell(Text('${row.homework}')),
-                                  DataCell(Text('${row.vocabulary}')),
-                                  DataCell(Text('${row.attendance}')),
-                                  DataCell(Text('${row.participation}')),
+                                  for (final column in visibleColumns)
+                                    DataCell(
+                                      Text('${row.valueForColumn(column.key)}'),
+                                    ),
                                   DataCell(Text('${row.total}')),
                                   DataCell(Text('${row.percent}%')),
                                   DataCell(

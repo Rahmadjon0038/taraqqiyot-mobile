@@ -131,50 +131,6 @@ class StudentGroupsService {
     return StudentPointReportsData.fromJson(Map<String, dynamic>.from(data));
   }
 
-  Future<StudentPointEvent?> createPointEvent(
-    AuthSession session, {
-    required int studentId,
-    required int groupId,
-    required int points,
-    required String title,
-    String? description,
-    String? sourceType,
-  }) async {
-    final response = await _client
-        .post(
-          _uri('/api/students/point-events'),
-          headers: {
-            'Authorization': 'Bearer ${session.accessToken}',
-            'Content-Type': 'application/json',
-          },
-          body: jsonEncode({
-            'student_id': studentId,
-            'group_id': groupId,
-            'points': points,
-            'title': title,
-            if (description != null && description.trim().isNotEmpty)
-              'description': description.trim(),
-            if (sourceType != null && sourceType.trim().isNotEmpty)
-              'source_type': sourceType.trim(),
-          }),
-        )
-        .timeout(_timeout);
-
-    final payload = _decodeResponse(response);
-    if (response.statusCode < 200 || response.statusCode >= 300) {
-      throw StudentGroupsException(
-        payload['message']?.toString() ??
-            payload['error']?.toString() ??
-            'Ball qo\'shilmadi',
-        statusCode: response.statusCode,
-      );
-    }
-
-    final data = payload['data'];
-    if (data is! Map) return null;
-    return StudentPointEvent.fromJson(Map<String, dynamic>.from(data));
-  }
-
   void dispose() {
     _client.close();
   }
@@ -564,6 +520,7 @@ class StudentLessonReport {
     required this.feedback,
     required this.createdAtLabel,
     required this.updatedAtLabel,
+    required this.columns,
     required this.rows,
   });
 
@@ -586,10 +543,22 @@ class StudentLessonReport {
   final String feedback;
   final String createdAtLabel;
   final String updatedAtLabel;
+  final List<StudentLessonReportColumn> columns;
   final List<StudentLessonReportRow> rows;
 
   factory StudentLessonReport.fromJson(Map<String, dynamic> json) {
     final rowsRaw = json['rows'];
+    final columnsRaw = json['columns'];
+    final columns = columnsRaw is List
+        ? columnsRaw
+              .whereType<Map>()
+              .map(
+                (item) => StudentLessonReportColumn.fromJson(
+                  Map<String, dynamic>.from(item),
+                ),
+              )
+              .toList()
+        : const <StudentLessonReportColumn>[];
     return StudentLessonReport(
       id: _asInt(json['id']),
       lessonId: _asInt(json['lesson_id']),
@@ -610,6 +579,9 @@ class StudentLessonReport {
       feedback: _asString(json['feedback']),
       createdAtLabel: _asString(json['created_at_label']),
       updatedAtLabel: _asString(json['updated_at_label']),
+      columns: columns.isNotEmpty
+          ? columns
+          : StudentLessonReportColumn.defaults(),
       rows: rowsRaw is List
           ? rowsRaw
                 .whereType<Map>()
@@ -624,6 +596,60 @@ class StudentLessonReport {
   }
 }
 
+/// Bitta hisobot ustuni (masalan "Uy vazifasi"). Backend har doim `label`ni
+/// tanilgan ustun turlari uchun o'zbekcha qilib qaytaradi, teacher qanday
+/// tanlashidan qat'iy nazar — shu bois bu yerda alohida tarjima kerak emas.
+class StudentLessonReportColumn {
+  const StudentLessonReportColumn({
+    required this.key,
+    required this.label,
+    required this.maxValue,
+    required this.enabled,
+  });
+
+  final String key;
+  final String label;
+  final int maxValue;
+  final bool enabled;
+
+  factory StudentLessonReportColumn.fromJson(Map<String, dynamic> json) {
+    return StudentLessonReportColumn(
+      key: _asString(json['key']),
+      label: _asString(json['label']),
+      maxValue: _asInt(json['max_value'] ?? json['maxValue'] ?? json['max']),
+      enabled: json['enabled'] != false,
+    );
+  }
+
+  /// Eski hisobotlarda `columns` bo'lmasa ishlatiladigan standart 4 ta ustun.
+  static List<StudentLessonReportColumn> defaults() => const [
+    StudentLessonReportColumn(
+      key: 'homework',
+      label: 'Uy vazifasi',
+      maxValue: 10,
+      enabled: true,
+    ),
+    StudentLessonReportColumn(
+      key: 'vocabulary',
+      label: 'So\'z boyligi',
+      maxValue: 10,
+      enabled: true,
+    ),
+    StudentLessonReportColumn(
+      key: 'attendance',
+      label: 'Davomat',
+      maxValue: 5,
+      enabled: true,
+    ),
+    StudentLessonReportColumn(
+      key: 'participation',
+      label: 'Faollik',
+      maxValue: 10,
+      enabled: true,
+    ),
+  ];
+}
+
 class StudentLessonReportRow {
   const StudentLessonReportRow({
     required this.studentId,
@@ -635,6 +661,7 @@ class StudentLessonReportRow {
     required this.total,
     required this.percent,
     required this.feedback,
+    required this.values,
   });
 
   final int studentId;
@@ -646,8 +673,34 @@ class StudentLessonReportRow {
   final int total;
   final int percent;
   final String feedback;
+  final Map<String, int> values;
+
+  /// `values`da mavjud bo'lsa o'shani, aks holda eski (legacy) sobit
+  /// maydonlarga (homework/vocabulary/...) qaytadigan qiymat.
+  int valueForColumn(String key) {
+    final direct = values[key];
+    if (direct != null) return direct;
+    switch (key) {
+      case 'homework':
+        return homework;
+      case 'vocabulary':
+        return vocabulary;
+      case 'attendance':
+        return attendance;
+      case 'participation':
+        return participation;
+      default:
+        return 0;
+    }
+  }
 
   factory StudentLessonReportRow.fromJson(Map<String, dynamic> json) {
+    final valuesRaw = json['values'];
+    final values = <String, int>{
+      if (valuesRaw is Map)
+        for (final entry in valuesRaw.entries)
+          _asString(entry.key): _asInt(entry.value),
+    };
     return StudentLessonReportRow(
       studentId: _asInt(json['student_id']),
       studentName: _asString(json['student_name']),
@@ -658,6 +711,7 @@ class StudentLessonReportRow {
       total: _asInt(json['total']),
       percent: _asInt(json['percent']),
       feedback: _asString(json['feedback']),
+      values: values,
     );
   }
 }
