@@ -582,6 +582,35 @@ class _HomeFeedState extends State<_HomeFeed> {
                                                       true
                                                   ? detail!.lessonReports.first
                                                   : null;
+                                              final myRow = _rowForStudent(
+                                                report,
+                                                widget.session.user.id,
+                                              );
+                                              final metrics = report == null
+                                                  ? const <HomeReportMetric>[]
+                                                  : report.columns
+                                                        .where(
+                                                          (column) =>
+                                                              column.enabled,
+                                                        )
+                                                        .map(
+                                                          (column) =>
+                                                              HomeReportMetric(
+                                                                key: column
+                                                                    .key,
+                                                                label: column
+                                                                    .label,
+                                                                value:
+                                                                    myRow?.valueForColumn(
+                                                                      column
+                                                                          .key,
+                                                                    ) ??
+                                                                    0,
+                                                                maxValue: column
+                                                                    .maxValue,
+                                                              ),
+                                                        )
+                                                        .toList();
                                               return HomeReportCard(
                                                 monthLabel:
                                                     _lessonReportDateLabel(
@@ -589,14 +618,16 @@ class _HomeFeedState extends State<_HomeFeed> {
                                                   fallback: featuredGroups[i]
                                                       .lastPointDate,
                                                 ),
-                                                homework: report?.homework,
-                                                vocabulary: report?.vocabulary,
-                                                attendance: report?.attendance,
-                                                participation:
-                                                    report?.participation,
-                                                totalScore: report?.total,
-                                                percent: report?.percent,
-                                                feedback: report?.feedback,
+                                                metrics: metrics,
+                                                totalScore:
+                                                    myRow?.total ??
+                                                    report?.total,
+                                                percent:
+                                                    myRow?.percent ??
+                                                    report?.percent,
+                                                feedback:
+                                                    myRow?.feedback ??
+                                                    report?.feedback,
                                                 onTap: () {
                                                   Navigator.of(context).push(
                                                     MaterialPageRoute(
@@ -1268,6 +1299,19 @@ class _HomeCardsEmpty extends StatelessWidget {
       ),
     );
   }
+}
+
+/// Hisobotdagi qatorlar orasidan joriy studentga tegishlisini topadi —
+/// karta shu studentning shaxsiy natijasini ko'rsatishi uchun.
+StudentLessonReportRow? _rowForStudent(
+  StudentLessonReport? report,
+  int studentId,
+) {
+  if (report == null) return null;
+  for (final row in report.rows) {
+    if (row.studentId == studentId) return row;
+  }
+  return null;
 }
 
 /// Oxirgi hisobot sanasi: report bo'lsa uning lesson_date'i,

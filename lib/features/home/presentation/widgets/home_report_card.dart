@@ -1,14 +1,29 @@
 import 'package:flutter/material.dart';
 
+/// Bitta hisobot ustuni (masalan "Uy vazifasi") — teacher qaysi ustunlarni
+/// sozlagan/yoqqan bo'lsa, shu ro'yxat aynan o'shani aks ettiradi. Statik
+/// 4 ta maydon emas, shuning uchun teacher bir ustunni o'chirsa (masalan
+/// "Faollik"), u bu yerda ham darhol yo'qoladi.
+class HomeReportMetric {
+  const HomeReportMetric({
+    required this.key,
+    required this.label,
+    required this.value,
+    required this.maxValue,
+  });
+
+  final String key;
+  final String label;
+  final int value;
+  final int maxValue;
+}
+
 class HomeReportCard extends StatelessWidget {
   const HomeReportCard({
     super.key,
     required this.monthLabel,
     this.breakdownText,
-    this.homework,
-    this.vocabulary,
-    this.attendance,
-    this.participation,
+    this.metrics = const [],
     this.totalScore,
     this.percent,
     this.feedback,
@@ -17,20 +32,14 @@ class HomeReportCard extends StatelessWidget {
 
   final String monthLabel;
   final String? breakdownText;
-  final int? homework;
-  final int? vocabulary;
-  final int? attendance;
-  final int? participation;
+  final List<HomeReportMetric> metrics;
   final int? totalScore;
   final int? percent;
   final String? feedback;
   final VoidCallback? onTap;
 
   bool get _hasLessonStats =>
-      homework != null &&
-      vocabulary != null &&
-      attendance != null &&
-      participation != null &&
+      metrics.isNotEmpty &&
       totalScore != null &&
       percent != null &&
       feedback != null;
@@ -127,10 +136,7 @@ class HomeReportCard extends StatelessWidget {
                 if (_hasLessonStats) ...[
                   const SizedBox(height: 10),
                   _LessonStatsPanel(
-                    homework: homework ?? 0,
-                    vocabulary: vocabulary ?? 0,
-                    attendance: attendance ?? 0,
-                    participation: participation ?? 0,
+                    metrics: metrics,
                     totalScore: totalScore ?? 0,
                     percent: percent ?? 0,
                     feedback: feedback ?? '',
@@ -180,20 +186,14 @@ class HomeReportCard extends StatelessWidget {
 
 class _LessonStatsPanel extends StatelessWidget {
   const _LessonStatsPanel({
-    required this.homework,
-    required this.vocabulary,
-    required this.attendance,
-    required this.participation,
+    required this.metrics,
     required this.totalScore,
     required this.percent,
     required this.feedback,
     required this.monthLabel,
   });
 
-  final int homework;
-  final int vocabulary;
-  final int attendance;
-  final int participation;
+  final List<HomeReportMetric> metrics;
   final int totalScore;
   final int percent;
   final String feedback;
@@ -215,54 +215,30 @@ class _LessonStatsPanel extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              Expanded(
-                child: _MetricBlock(
-                  label: 'Uy vazifasi',
-                  value: homework,
-                  maxValue: 10,
-                  color: const Color(0xFF4F46E5),
-                  icon: Icons.menu_book_rounded,
+          for (var i = 0; i < metrics.length; i += 2) ...[
+            Row(
+              children: [
+                Expanded(
+                  child: _MetricBlock(
+                    metric: metrics[i],
+                    color: _metricColor(metrics[i].key, i),
+                    icon: _metricIcon(metrics[i].key),
+                  ),
                 ),
-              ),
-              const SizedBox(width: 6),
-              Expanded(
-                child: _MetricBlock(
-                  label: 'So\'z boyligi',
-                  value: vocabulary,
-                  maxValue: 10,
-                  color: const Color(0xFF22C55E),
-                  icon: Icons.chat_bubble_rounded,
+                const SizedBox(width: 6),
+                Expanded(
+                  child: i + 1 < metrics.length
+                      ? _MetricBlock(
+                          metric: metrics[i + 1],
+                          color: _metricColor(metrics[i + 1].key, i + 1),
+                          icon: _metricIcon(metrics[i + 1].key),
+                        )
+                      : const SizedBox.shrink(),
                 ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          Row(
-            children: [
-              Expanded(
-                child: _MetricBlock(
-                  label: 'Davomat',
-                  value: attendance,
-                  maxValue: 5,
-                  color: const Color(0xFFF59E0B),
-                  icon: Icons.event_available_rounded,
-                ),
-              ),
-              const SizedBox(width: 6),
-              Expanded(
-                child: _MetricBlock(
-                  label: 'Faollik',
-                  value: participation,
-                  maxValue: 10,
-                  color: const Color(0xFF3B82F6),
-                  icon: Icons.bar_chart_rounded,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
+              ],
+            ),
+            const SizedBox(height: 8),
+          ],
           Container(
             width: double.infinity,
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
@@ -312,21 +288,20 @@ class _LessonStatsPanel extends StatelessWidget {
 
 class _MetricBlock extends StatelessWidget {
   const _MetricBlock({
-    required this.label,
-    required this.value,
-    required this.maxValue,
+    required this.metric,
     required this.color,
     required this.icon,
   });
 
-  final String label;
-  final int value;
-  final int maxValue;
+  final HomeReportMetric metric;
   final Color color;
   final IconData icon;
 
   @override
   Widget build(BuildContext context) {
+    final label = metric.label;
+    final value = metric.value;
+    final maxValue = metric.maxValue;
     final ratio = maxValue <= 0 ? 0.0 : (value / maxValue).clamp(0.0, 1.0);
     final completed = ratio >= 0.999;
 
@@ -576,6 +551,65 @@ class _ActionButton extends StatelessWidget {
         ],
       ),
     );
+  }
+}
+
+const List<Color> _metricPalette = [
+  Color(0xFF4F46E5),
+  Color(0xFF22C55E),
+  Color(0xFFF59E0B),
+  Color(0xFF3B82F6),
+  Color(0xFFEC4899),
+  Color(0xFF14B8A6),
+  Color(0xFF8B5CF6),
+  Color(0xFFEF4444),
+];
+
+/// Standart ustunlar uchun ma'lum rang, teacher qo'shgan custom ustunlar
+/// uchun palitradan navbat bilan tanlanadi.
+Color _metricColor(String key, int index) {
+  switch (key) {
+    case 'homework':
+      return const Color(0xFF4F46E5);
+    case 'vocabulary':
+      return const Color(0xFF22C55E);
+    case 'attendance':
+      return const Color(0xFFF59E0B);
+    case 'participation':
+      return const Color(0xFF3B82F6);
+    default:
+      return _metricPalette[index % _metricPalette.length];
+  }
+}
+
+IconData _metricIcon(String key) {
+  switch (key) {
+    case 'homework':
+      return Icons.menu_book_rounded;
+    case 'vocabulary':
+      return Icons.chat_bubble_rounded;
+    case 'attendance':
+      return Icons.event_available_rounded;
+    case 'participation':
+      return Icons.bar_chart_rounded;
+    case 'word_memorization':
+      return Icons.psychology_alt_rounded;
+    case 'sentence_building':
+      return Icons.edit_note_rounded;
+    case 'listening':
+      return Icons.headphones_rounded;
+    case 'speaking':
+      return Icons.record_voice_over_rounded;
+    case 'reading':
+      return Icons.menu_book_outlined;
+    case 'writing':
+      return Icons.create_rounded;
+    case 'spelling':
+      return Icons.spellcheck_rounded;
+    case 'test':
+      return Icons.quiz_rounded;
+    default:
+      return Icons.grade_rounded;
   }
 }
 
