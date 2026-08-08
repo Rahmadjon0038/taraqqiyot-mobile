@@ -192,6 +192,8 @@ class _NotificationPageState extends State<NotificationPage> {
         return 'Davomat';
       case 'lesson':
         return 'Dars';
+      case 'report':
+        return 'Hisobot';
       default:
         return 'Xabar';
     }
@@ -212,6 +214,8 @@ class _NotificationPageState extends State<NotificationPage> {
         return Icons.fact_check_rounded;
       case 'lesson':
         return Icons.school_rounded;
+      case 'report':
+        return Icons.assignment_turned_in_rounded;
       default:
         return Icons.notifications_active_rounded;
     }
@@ -262,6 +266,21 @@ class _NotificationPageState extends State<NotificationPage> {
           : data['paid_amount']?.toString().trim() ?? '';
       final parts = <String>[];
       if (amount.isNotEmpty) parts.add('$amount so\'m');
+      if (parts.isNotEmpty) {
+        return parts.join(' • ');
+      }
+    }
+
+    if (type == 'report') {
+      final groupName = data['group_name']?.toString().trim() ?? '';
+      final total = data['total']?.toString().trim() ?? '';
+      final percent = data['percent']?.toString().trim() ?? '';
+      // "Ball" rejimida (grading_enabled=false) foiz ma'noga ega emas.
+      final gradingEnabled = data['grading_enabled']?.toString() != 'false';
+      final parts = <String>[];
+      if (groupName.isNotEmpty) parts.add(groupName);
+      if (total.isNotEmpty) parts.add('$total ball');
+      if (gradingEnabled && percent.isNotEmpty) parts.add('$percent%');
       if (parts.isNotEmpty) {
         return parts.join(' • ');
       }
