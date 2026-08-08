@@ -628,8 +628,10 @@ class _HomeFeedState extends State<_HomeFeed> {
                                                 feedback:
                                                     myRow?.feedback ??
                                                     report?.feedback,
-                                                onTap: () {
-                                                  Navigator.of(context).push(
+                                                onTap: () async {
+                                                  await Navigator.of(
+                                                    context,
+                                                  ).push(
                                                     MaterialPageRoute(
                                                       builder: (_) =>
                                                           StudentPointReportsPage(
@@ -646,6 +648,19 @@ class _HomeFeedState extends State<_HomeFeed> {
                                                           ),
                                                     ),
                                                   );
+                                                  // Batafsil sahifada
+                                                  // hisobot o'zgargan bo'lishi
+                                                  // mumkin — kartani yangilash
+                                                  // uchun keshni tozalaymiz.
+                                                  if (mounted) {
+                                                    setState(() {
+                                                      _groupDetailsCache
+                                                          .remove(
+                                                            featuredGroups[i]
+                                                                .groupId,
+                                                          );
+                                                    });
+                                                  }
                                                 },
                                               );
                                             },
