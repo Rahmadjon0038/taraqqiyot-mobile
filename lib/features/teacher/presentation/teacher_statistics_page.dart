@@ -1324,6 +1324,67 @@ class _LessonStatisticsCard extends StatelessWidget {
   }
 }
 
+/// "Baholash" (foiz/baho hisoblanadi) va "Ball" (oddiy, faqat jami ball)
+/// rejimlari orasidagi tab tugmasi.
+class _GradingModeTabButton extends StatelessWidget {
+  const _GradingModeTabButton({
+    required this.label,
+    required this.icon,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final String label;
+  final IconData icon;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 160),
+        padding: const EdgeInsets.symmetric(vertical: 9),
+        decoration: BoxDecoration(
+          color: selected ? Colors.white : Colors.transparent,
+          borderRadius: BorderRadius.circular(10),
+          boxShadow: selected
+              ? const [
+                  BoxShadow(
+                    color: Color(0x14101828),
+                    blurRadius: 6,
+                    offset: Offset(0, 2),
+                  ),
+                ]
+              : null,
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              icon,
+              size: 15,
+              color: selected ? AppTheme.brandColor : const Color(0xFF64748B),
+            ),
+            const SizedBox(width: 5),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w800,
+                color: selected
+                    ? AppTheme.brandColor
+                    : const Color(0xFF64748B),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class _MiniBadge extends StatelessWidget {
   const _MiniBadge({required this.icon, required this.label});
 
@@ -1480,6 +1541,10 @@ class _LessonStatisticsEditorSheetState
   late final bool _readOnly;
   late final List<TeacherReportColumnCatalogEntry> _catalog;
 
+  /// false — "Ball" (oddiy ball) rejimi: foiz/baho hisoblanmaydi,
+  /// faqat jami ball ko'rsatiladi.
+  late bool _gradingEnabled;
+
   TeacherReportColumnCatalogEntry _catalogEntryForKey(String key) {
     for (final entry in _catalog) {
       if (entry.key == key) return entry;
@@ -1504,15 +1569,18 @@ class _LessonStatisticsEditorSheetState
       _statisticsStudentColumnWidth +
       (_statisticsScoreColumnWidth * _enabledColumns.length) +
       _statisticsTotalColumnWidth +
-      _statisticsPercentColumnWidth +
-      _statisticsFeedbackColumnWidth +
-      (_statisticsColumnGap * (_enabledColumns.length + 4)) +
+      (_gradingEnabled
+          ? _statisticsPercentColumnWidth + _statisticsFeedbackColumnWidth
+          : 0) +
+      (_statisticsColumnGap *
+          (_enabledColumns.length + (_gradingEnabled ? 4 : 2))) +
       (_statisticsHorizontalPadding * 2);
 
   @override
   void initState() {
     super.initState();
     _readOnly = widget.readOnly;
+    _gradingEnabled = widget.initialReport?.gradingEnabled ?? true;
     _catalog = widget.columnCatalog.isEmpty
         ? TeacherReportColumnCatalogEntry.fallback()
         : widget.columnCatalog;
@@ -2181,6 +2249,7 @@ class _LessonStatisticsEditorSheetState
           )
           .toList(),
       rows: rows,
+      gradingEnabled: _gradingEnabled,
     );
   }
 
@@ -2272,6 +2341,41 @@ class _LessonStatisticsEditorSheetState
     if (parts.isEmpty || parts.first.isEmpty) return const <String>[];
     if (parts.length == 1) return [parts.first];
     return [parts.first, parts.skip(1).join(' ')];
+  }
+
+  Widget _buildGradingModeTabs() {
+    if (_readOnly) return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: Container(
+        padding: const EdgeInsets.all(4),
+        decoration: BoxDecoration(
+          color: const Color(0xFFF1F3F8),
+          borderRadius: BorderRadius.circular(14),
+        ),
+        child: Row(
+          children: [
+            Expanded(
+              child: _GradingModeTabButton(
+                label: 'Baholash',
+                icon: Icons.verified_rounded,
+                selected: _gradingEnabled,
+                onTap: () => setState(() => _gradingEnabled = true),
+              ),
+            ),
+            const SizedBox(width: 4),
+            Expanded(
+              child: _GradingModeTabButton(
+                label: 'Ball',
+                icon: Icons.pin_rounded,
+                selected: !_gradingEnabled,
+                onTap: () => setState(() => _gradingEnabled = false),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   Widget _buildColumnSettingsButton() {
@@ -2374,39 +2478,44 @@ class _LessonStatisticsEditorSheetState
               ),
             ),
           ),
-          SizedBox(
-            width: _statisticsPercentColumnWidth,
-            child: Text(
-              '$percent%',
-              textAlign: TextAlign.center,
-              style: const TextStyle(
-                fontSize: 10,
-                fontWeight: FontWeight.w800,
-                color: Color(0xFF182033),
-              ),
-            ),
-          ),
-          SizedBox(
-            width: _statisticsFeedbackColumnWidth,
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
-              decoration: BoxDecoration(
-                color: feedbackColor.withValues(alpha: 0.10),
-                borderRadius: BorderRadius.circular(999),
-              ),
+          if (_gradingEnabled) ...[
+            SizedBox(
+              width: _statisticsPercentColumnWidth,
               child: Text(
-                feedback,
+                '$percent%',
                 textAlign: TextAlign.center,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  fontSize: 8.0,
-                  fontWeight: FontWeight.w900,
-                  color: feedbackColor,
+                style: const TextStyle(
+                  fontSize: 10,
+                  fontWeight: FontWeight.w800,
+                  color: Color(0xFF182033),
                 ),
               ),
             ),
-          ),
+            SizedBox(
+              width: _statisticsFeedbackColumnWidth,
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 4,
+                  vertical: 4,
+                ),
+                decoration: BoxDecoration(
+                  color: feedbackColor.withValues(alpha: 0.10),
+                  borderRadius: BorderRadius.circular(999),
+                ),
+                child: Text(
+                  feedback,
+                  textAlign: TextAlign.center,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 8.0,
+                    fontWeight: FontWeight.w900,
+                    color: feedbackColor,
+                  ),
+                ),
+              ),
+            ),
+          ],
         ],
       ),
     );
@@ -2502,6 +2611,8 @@ class _LessonStatisticsEditorSheetState
                 ),
               ),
               const SizedBox(height: 10),
+              _buildGradingModeTabs(),
+              const SizedBox(height: 8),
               _buildColumnSettingsButton(),
               const SizedBox(height: 12),
               Expanded(
@@ -2551,17 +2662,23 @@ class _LessonStatisticsEditorSheetState
                                       width: _statisticsTotalColumnWidth,
                                       subtitle: _maxTotal.toString(),
                                     ),
-                                    const SizedBox(width: _statisticsColumnGap),
-                                    _headerCell(
-                                      'PCT',
-                                      width: _statisticsPercentColumnWidth,
-                                      subtitle: '100%',
-                                    ),
-                                    const SizedBox(width: _statisticsColumnGap),
-                                    _headerCell(
-                                      'FB',
-                                      width: _statisticsFeedbackColumnWidth,
-                                    ),
+                                    if (_gradingEnabled) ...[
+                                      const SizedBox(
+                                        width: _statisticsColumnGap,
+                                      ),
+                                      _headerCell(
+                                        'PCT',
+                                        width: _statisticsPercentColumnWidth,
+                                        subtitle: '100%',
+                                      ),
+                                      const SizedBox(
+                                        width: _statisticsColumnGap,
+                                      ),
+                                      _headerCell(
+                                        'FB',
+                                        width: _statisticsFeedbackColumnWidth,
+                                      ),
+                                    ],
                                   ],
                                 ),
                               ),

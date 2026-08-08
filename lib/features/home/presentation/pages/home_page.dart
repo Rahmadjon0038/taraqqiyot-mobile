@@ -628,6 +628,9 @@ class _HomeFeedState extends State<_HomeFeed> {
                                                 feedback:
                                                     myRow?.feedback ??
                                                     report?.feedback,
+                                                gradingEnabled:
+                                                    report?.gradingEnabled ??
+                                                    true,
                                                 onTap: () async {
                                                   await Navigator.of(
                                                     context,

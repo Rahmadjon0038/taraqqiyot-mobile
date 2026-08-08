@@ -27,6 +27,7 @@ class HomeReportCard extends StatelessWidget {
     this.totalScore,
     this.percent,
     this.feedback,
+    this.gradingEnabled = true,
     this.onTap,
   });
 
@@ -36,13 +37,16 @@ class HomeReportCard extends StatelessWidget {
   final int? totalScore;
   final int? percent;
   final String? feedback;
+
+  /// false — teacher bu darsda "Ball" rejimini tanlagan: foiz/baho
+  /// ko'rsatilmaydi, faqat jami ball.
+  final bool gradingEnabled;
   final VoidCallback? onTap;
 
   bool get _hasLessonStats =>
       metrics.isNotEmpty &&
       totalScore != null &&
-      percent != null &&
-      feedback != null;
+      (!gradingEnabled || (percent != null && feedback != null));
 
   @override
   Widget build(BuildContext context) {
@@ -140,6 +144,7 @@ class HomeReportCard extends StatelessWidget {
                     totalScore: totalScore ?? 0,
                     percent: percent ?? 0,
                     feedback: feedback ?? '',
+                    gradingEnabled: gradingEnabled,
                     monthLabel: monthLabel,
                   ),
                 ] else if (breakdownText != null &&
@@ -190,6 +195,7 @@ class _LessonStatsPanel extends StatelessWidget {
     required this.totalScore,
     required this.percent,
     required this.feedback,
+    required this.gradingEnabled,
     required this.monthLabel,
   });
 
@@ -197,6 +203,7 @@ class _LessonStatsPanel extends StatelessWidget {
   final int totalScore;
   final int percent;
   final String feedback;
+  final bool gradingEnabled;
   final String monthLabel;
 
   @override
@@ -257,24 +264,34 @@ class _LessonStatsPanel extends StatelessWidget {
                     color: const Color(0xFF4F46E5),
                   ),
                 ),
-                Container(width: 1, height: 30, color: const Color(0xFFD9E0F2)),
-                Expanded(
-                  child: _SummaryStat(
-                    icon: Icons.track_changes_rounded,
-                    label: 'Foiz',
-                    value: '$percent%',
-                    color: const Color(0xFF0EA5A0),
+                if (gradingEnabled) ...[
+                  Container(
+                    width: 1,
+                    height: 30,
+                    color: const Color(0xFFD9E0F2),
                   ),
-                ),
-                Container(width: 1, height: 30, color: const Color(0xFFD9E0F2)),
-                Expanded(
-                  child: _SummaryStat(
-                    icon: Icons.verified_rounded,
-                    label: 'Baho',
-                    value: feedbackLabel,
-                    color: _summaryToneColor(feedbackTone),
+                  Expanded(
+                    child: _SummaryStat(
+                      icon: Icons.track_changes_rounded,
+                      label: 'Foiz',
+                      value: '$percent%',
+                      color: const Color(0xFF0EA5A0),
+                    ),
                   ),
-                ),
+                  Container(
+                    width: 1,
+                    height: 30,
+                    color: const Color(0xFFD9E0F2),
+                  ),
+                  Expanded(
+                    child: _SummaryStat(
+                      icon: Icons.verified_rounded,
+                      label: 'Baho',
+                      value: feedbackLabel,
+                      color: _summaryToneColor(feedbackTone),
+                    ),
+                  ),
+                ],
               ],
             ),
           ),

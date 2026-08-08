@@ -812,6 +812,7 @@ class TeacherLessonStatisticsReport {
     required this.createdAt,
     required this.columns,
     required this.rows,
+    this.gradingEnabled = true,
   });
 
   final int lessonId;
@@ -821,6 +822,10 @@ class TeacherLessonStatisticsReport {
   final List<TeacherLessonStatisticsColumnReport> columns;
   final List<TeacherLessonStatisticsRowReport> rows;
 
+  /// false bo'lsa — teacher "Ball" (oddiy ball) rejimini tanlagan:
+  /// foiz/baho hisoblanmaydi, faqat jami ball ko'rsatiladi.
+  final bool gradingEnabled;
+
   Map<String, dynamic> toJson() => {
     'lesson_id': lessonId,
     'lesson_label': lessonLabel,
@@ -828,6 +833,7 @@ class TeacherLessonStatisticsReport {
     'created_at': createdAt,
     'columns': columns.map((column) => column.toJson()).toList(),
     'rows': rows.map((row) => row.toJson()).toList(),
+    'grading_enabled': gradingEnabled,
   };
 
   factory TeacherLessonStatisticsReport.fromJson(Map<String, dynamic> json) {
@@ -838,6 +844,7 @@ class TeacherLessonStatisticsReport {
       lessonLabel: _asString(json['lesson_label']),
       groupName: _asString(json['group_name']),
       createdAt: _asString(json['created_at']),
+      gradingEnabled: json['grading_enabled'] != false,
       columns: columnsRaw is List
           ? columnsRaw
                 .whereType<Map>()

@@ -1048,8 +1048,10 @@ class _LessonReportTile extends StatelessWidget {
                           for (final column in visibleColumns)
                             DataColumn(label: Text(column.label)),
                           const DataColumn(label: Text('Jami')),
-                          const DataColumn(label: Text('Foiz')),
-                          const DataColumn(label: Text('Baho')),
+                          if (report.gradingEnabled) ...[
+                            const DataColumn(label: Text('Foiz')),
+                            const DataColumn(label: Text('Baho')),
+                          ],
                         ],
                         rows: report.rows
                             .map(
@@ -1082,36 +1084,40 @@ class _LessonReportTile extends StatelessWidget {
                                       Text('${row.valueForColumn(column.key)}'),
                                     ),
                                   DataCell(Text('${row.total}')),
-                                  DataCell(Text('${row.percent}%')),
-                                  DataCell(
-                                    Container(
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 8,
-                                        vertical: 3,
-                                      ),
-                                      decoration: BoxDecoration(
-                                        color: _reportTone(
-                                          row.feedback,
-                                        ).badgeBg,
-                                        borderRadius: BorderRadius.circular(16),
-                                        border: Border.all(
-                                          color: _reportTone(
-                                            row.feedback,
-                                          ).border,
+                                  if (report.gradingEnabled) ...[
+                                    DataCell(Text('${row.percent}%')),
+                                    DataCell(
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 8,
+                                          vertical: 3,
                                         ),
-                                      ),
-                                      child: Text(
-                                        _feedbackLabelUz(row.feedback),
-                                        style: TextStyle(
-                                          fontSize: 10,
-                                          fontWeight: FontWeight.w900,
+                                        decoration: BoxDecoration(
                                           color: _reportTone(
                                             row.feedback,
-                                          ).badgeFg,
+                                          ).badgeBg,
+                                          borderRadius: BorderRadius.circular(
+                                            16,
+                                          ),
+                                          border: Border.all(
+                                            color: _reportTone(
+                                              row.feedback,
+                                            ).border,
+                                          ),
+                                        ),
+                                        child: Text(
+                                          _feedbackLabelUz(row.feedback),
+                                          style: TextStyle(
+                                            fontSize: 10,
+                                            fontWeight: FontWeight.w900,
+                                            color: _reportTone(
+                                              row.feedback,
+                                            ).badgeFg,
+                                          ),
                                         ),
                                       ),
                                     ),
-                                  ),
+                                  ],
                                 ],
                                 );
                               },

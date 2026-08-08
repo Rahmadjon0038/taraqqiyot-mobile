@@ -522,6 +522,7 @@ class StudentLessonReport {
     required this.updatedAtLabel,
     required this.columns,
     required this.rows,
+    this.gradingEnabled = true,
   });
 
   final int id;
@@ -545,6 +546,10 @@ class StudentLessonReport {
   final String updatedAtLabel;
   final List<StudentLessonReportColumn> columns;
   final List<StudentLessonReportRow> rows;
+
+  /// false bo'lsa — teacher bu darsda "Ball" (oddiy ball) rejimini
+  /// tanlagan: foiz/baho ko'rsatilmasligi kerak, faqat jami ball.
+  final bool gradingEnabled;
 
   factory StudentLessonReport.fromJson(Map<String, dynamic> json) {
     final rowsRaw = json['rows'];
@@ -579,6 +584,7 @@ class StudentLessonReport {
       feedback: _asString(json['feedback']),
       createdAtLabel: _asString(json['created_at_label']),
       updatedAtLabel: _asString(json['updated_at_label']),
+      gradingEnabled: json['grading_enabled'] != false,
       columns: columns.isNotEmpty
           ? columns
           : StudentLessonReportColumn.defaults(),
