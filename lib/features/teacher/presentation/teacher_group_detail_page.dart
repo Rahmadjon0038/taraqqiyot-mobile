@@ -424,11 +424,50 @@ class _StudentRow extends StatelessWidget {
                     ),
                   ],
                 ),
+                if (student.phone.trim().isNotEmpty ||
+                    student.phone2.trim().isNotEmpty) ...[
+                  const SizedBox(height: 3),
+                  Wrap(
+                    spacing: 10,
+                    runSpacing: 2,
+                    children: [
+                      if (student.phone.trim().isNotEmpty)
+                        _PhoneLine(phone: student.phone),
+                      if (student.phone2.trim().isNotEmpty)
+                        _PhoneLine(phone: student.phone2),
+                    ],
+                  ),
+                ],
               ],
             ),
           ),
         ],
       ),
+    );
+  }
+}
+
+class _PhoneLine extends StatelessWidget {
+  const _PhoneLine({required this.phone});
+
+  final String phone;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        const Icon(Icons.call_rounded, size: 11, color: Color(0xFF7B8495)),
+        const SizedBox(width: 3),
+        Text(
+          phone,
+          style: const TextStyle(
+            fontSize: 11,
+            fontWeight: FontWeight.w600,
+            color: Color(0xFF7B8495),
+          ),
+        ),
+      ],
     );
   }
 }

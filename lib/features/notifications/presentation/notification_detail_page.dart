@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 
 import '../../../app/theme/app_theme.dart';
@@ -17,23 +19,33 @@ class NotificationDetailPage extends StatelessWidget {
     final createdAt = _stringValue(payload['created_at']);
     final createdAtLabel = _formatDateTimeLabel(createdAt);
     final data = _extractData(payload);
+    final reportColumns = _extractReportColumns(data);
+    final reportTotal = _extractReportTotal(data);
     final attendanceGroup = _stringValue(data['group_name']);
     final attendanceTeacher = _stringValue(data['teacher_name']);
     final attendanceSubject = _stringValue(data['subject_name']);
     final attendanceStatus = _stringValue(data['attendance_status']);
     final attendanceMarkedAt = _stringValue(data['attendance_marked_at']);
     final paymentAmount = _extractPaymentAmount(data);
+    final paymentReminderDebtAmount = _extractPaymentReminderAmount(data);
+    final paymentReminderMessage = _stringValue(data['reminder_message']);
+    final paymentReminderMonth = _stringValue(data['month_label']);
     final discountAmount = _extractDiscountAmount(data);
     final discountReason = _extractDiscountReason(payload);
     final paymentReceiverName = _extractPaymentReceiverName(payload);
     final displayBody = _buildDisplayBody(
       type: type,
+      reportColumns: reportColumns,
+      reportTotal: reportTotal,
       attendanceGroup: attendanceGroup,
       attendanceTeacher: attendanceTeacher,
       attendanceSubject: attendanceSubject,
       attendanceStatus: attendanceStatus,
       attendanceMarkedAt: attendanceMarkedAt,
       paymentAmount: paymentAmount,
+      paymentReminderDebtAmount: paymentReminderDebtAmount,
+      paymentReminderMessage: paymentReminderMessage,
+      paymentReminderMonth: paymentReminderMonth,
       discountAmount: discountAmount,
       discountReason: discountReason,
       paymentReceiverName: paymentReceiverName,
@@ -111,7 +123,26 @@ class NotificationDetailPage extends StatelessWidget {
                         ),
                       ],
                       const SizedBox(height: 12),
-                      if (type == 'discount' && discountAmount.isNotEmpty) ...[
+                      if (type == 'report' && reportColumns.isNotEmpty) ...[
+                        _InfoChip(
+                          icon: Icons.assignment_turned_in_rounded,
+                          title: 'Jami',
+                          value: reportTotal.isNotEmpty ? '$reportTotal ball' : '-',
+                        ),
+                        const SizedBox(height: 8),
+                        Wrap(
+                          spacing: 8,
+                          runSpacing: 8,
+                          children: reportColumns
+                              .map(
+                                (item) => _MiniReportChip(
+                                  title: _stringValue(item['label']),
+                                  value: _stringValue(item['value']),
+                                ),
+                              )
+                              .toList(),
+                        ),
+                      ] else if (type == 'discount' && discountAmount.isNotEmpty) ...[
                         _InfoChip(
                           icon: Icons.local_offer_rounded,
                           title: 'Chegirma',
@@ -123,6 +154,21 @@ class NotificationDetailPage extends StatelessWidget {
                             icon: Icons.notes_rounded,
                             title: 'Sabab',
                             value: discountReason,
+                          ),
+                      ] else if (type == 'payment_reminder') ...[
+                        _InfoChip(
+                          icon: Icons.payments_rounded,
+                          title: 'Qarz',
+                          value: paymentReminderDebtAmount.isNotEmpty
+                              ? paymentReminderDebtAmount
+                              : '-',
+                        ),
+                        const SizedBox(height: 8),
+                        if (paymentReminderMonth.isNotEmpty)
+                          _InfoChip(
+                            icon: Icons.calendar_month_rounded,
+                            title: 'Oy',
+                            value: paymentReminderMonth,
                           ),
                       ] else if (type == 'attendance') ...[
                         _InfoChip(
@@ -213,7 +259,43 @@ class NotificationDetailPage extends StatelessWidget {
                           fontWeight: FontWeight.w500,
                         ),
                       ),
-                      if (type != 'discount' &&
+                      if (type == 'report' && reportColumns.isNotEmpty) ...[
+                        const SizedBox(height: 16),
+                        _DetailRow(
+                          label: 'Jami',
+                          value: reportTotal.isEmpty ? '-' : '$reportTotal ball',
+                        ),
+                        const SizedBox(height: 12),
+                        Wrap(
+                          spacing: 8,
+                          runSpacing: 8,
+                          children: reportColumns
+                              .map(
+                                (item) => _MiniReportChip(
+                                  title: _stringValue(item['label']),
+                                  value: _stringValue(item['value']),
+                                ),
+                              )
+                              .toList(),
+                        ),
+                      ] else if (attendanceSubject.isNotEmpty ||
+                          attendanceGroup.isNotEmpty) ...[
+                        const SizedBox(height: 16),
+                        if (attendanceSubject.isNotEmpty)
+                          _DetailRow(
+                            label: 'Fan',
+                            value: attendanceSubject,
+                          ),
+                        if (attendanceSubject.isNotEmpty &&
+                            attendanceGroup.isNotEmpty)
+                          const SizedBox(height: 10),
+                        if (attendanceGroup.isNotEmpty)
+                          _DetailRow(
+                            label: 'Guruh',
+                            value: attendanceGroup,
+                          ),
+                      ],
+                      if (type == 'payment' &&
                           paymentReceiverName.isNotEmpty) ...[
                         const SizedBox(height: 14),
                         Container(
@@ -251,6 +333,35 @@ class NotificationDetailPage extends StatelessWidget {
                           ),
                         ),
                       ],
+                      if (type == 'payment_reminder') ...[
+                        const SizedBox(height: 16),
+                        _DetailRow(
+                          label: 'Xabar',
+                          value: paymentReminderMessage.isEmpty
+                              ? '-'
+                              : paymentReminderMessage,
+                        ),
+                        const SizedBox(height: 10),
+                        _DetailRow(
+                          label: 'Guruh',
+                          value: attendanceGroup.isEmpty ? '-' : attendanceGroup,
+                        ),
+                        const SizedBox(height: 10),
+                        _DetailRow(
+                          label: 'Fan',
+                          value: attendanceSubject.isEmpty
+                              ? '-'
+                              : attendanceSubject,
+                        ),
+                        const SizedBox(height: 10),
+                        _DetailRow(
+                          label: 'Qarz',
+                          value: paymentReminderDebtAmount.isEmpty
+                              ? '-'
+                              : paymentReminderDebtAmount,
+                          valueColor: const Color(0xFFB91C1C),
+                        ),
+                      ],
                     ],
             ),
           ),
@@ -263,6 +374,23 @@ class NotificationDetailPage extends StatelessWidget {
     final rawData = payload['data'];
     if (rawData is Map) {
       return Map<String, dynamic>.from(rawData);
+    }
+
+    // Push notification'lar navigator orqali kelganda payload maydonlari
+    // ko'pincha to'g'ridan-to'g'ri top-level bo'lib keladi. Shu holatda ham
+    // report/payment/attendance tafsilotlari yo'qolib ketmasligi uchun
+    // umumiy metadata'ni olib tashlab, qolganini data sifatida ishlatamiz.
+    final fallbackData = Map<String, dynamic>.from(payload)
+      ..remove('route')
+      ..remove('type')
+      ..remove('title')
+      ..remove('body')
+      ..remove('created_at')
+      ..remove('is_read')
+      ..remove('id');
+
+    if (fallbackData.isNotEmpty) {
+      return fallbackData;
     }
 
     return <String, dynamic>{};
@@ -304,6 +432,49 @@ class NotificationDetailPage extends StatelessWidget {
     return '';
   }
 
+  List<Map<String, dynamic>> _extractReportColumns(Map<String, dynamic> data) {
+    final rawColumns = data['report_columns'];
+    List<dynamic>? columnsList;
+    if (rawColumns is List) {
+      columnsList = rawColumns;
+    } else if (rawColumns is String && rawColumns.trim().isNotEmpty) {
+      try {
+        final decoded = jsonDecode(rawColumns);
+        if (decoded is List) {
+          columnsList = decoded;
+        }
+      } catch (_) {
+        columnsList = null;
+      }
+    }
+
+    if (columnsList == null) {
+      return const <Map<String, dynamic>>[];
+    }
+
+    return columnsList
+        .whereType<Map>()
+        .map((item) {
+          final map = Map<String, dynamic>.from(item);
+          return <String, dynamic>{
+            ...map,
+            'label': _stringValue(map['label']),
+            'value': _stringValue(map['value']),
+          };
+        })
+        .where((item) => _stringValue(item['label']).isNotEmpty)
+        .toList();
+  }
+
+  String _extractReportTotal(Map<String, dynamic> data) {
+    final raw = data['total'] ?? data['report_total'];
+    final text = _stringValue(raw);
+    if (text.isEmpty) return '';
+    final parsed = num.tryParse(text);
+    if (parsed == null) return text;
+    return _formatMoney(parsed);
+  }
+
   String _extractPaymentAmount(Map<String, dynamic> data) {
     final amount = data['amount'] ?? data['paid_amount'];
     final text = _stringValue(amount);
@@ -321,17 +492,46 @@ class NotificationDetailPage extends StatelessWidget {
 
   String _buildDisplayBody({
     required String type,
+    required List<Map<String, dynamic>> reportColumns,
+    required String reportTotal,
     required String attendanceGroup,
     required String attendanceTeacher,
     required String attendanceSubject,
     required String attendanceStatus,
     required String attendanceMarkedAt,
     required String paymentAmount,
+    required String paymentReminderDebtAmount,
+    required String paymentReminderMessage,
+    required String paymentReminderMonth,
     required String discountAmount,
     required String discountReason,
     required String paymentReceiverName,
     required String fallbackBody,
   }) {
+    if (type == 'report') {
+      final parts = <String>[];
+      if (reportColumns.isNotEmpty) {
+        final shortColumns = reportColumns
+            .map((item) {
+              final label = _stringValue(item['label']);
+              final value = _stringValue(item['value']);
+              return label.isNotEmpty && value.isNotEmpty ? '$label $value' : '';
+            })
+            .where((part) => part.isNotEmpty)
+            .toList();
+        if (shortColumns.isNotEmpty) {
+          parts.add(shortColumns.join(' • '));
+        }
+      }
+      if (reportTotal.isNotEmpty) {
+        parts.add('Jami $reportTotal ball');
+      }
+      if (parts.isNotEmpty) {
+        return parts.join('\n');
+      }
+      return _cleanReportBody(fallbackBody);
+    }
+
     if (type == 'attendance') {
       final parts = <String>[];
       final statusLabel = _attendanceStatusLabel(attendanceStatus);
@@ -361,6 +561,23 @@ class NotificationDetailPage extends StatelessWidget {
       return fallbackBody;
     }
 
+    if (type == 'payment_reminder') {
+      final parts = <String>[];
+      if (paymentReminderDebtAmount.isNotEmpty) {
+        parts.add('Qarz: $paymentReminderDebtAmount');
+      }
+      if (paymentReminderMonth.isNotEmpty) {
+        parts.add(paymentReminderMonth);
+      }
+      if (paymentReminderMessage.isNotEmpty) {
+        parts.add(paymentReminderMessage);
+      }
+      if (parts.isNotEmpty) {
+        return parts.join('\n');
+      }
+      return fallbackBody;
+    }
+
     final parts = <String>[];
     if (paymentAmount.isNotEmpty) {
       parts.add('To\'lov qabul qilindi: $paymentAmount');
@@ -369,6 +586,21 @@ class NotificationDetailPage extends StatelessWidget {
       return '${parts.join('. ')}.';
     }
     return fallbackBody;
+  }
+
+  String _cleanReportBody(String body) {
+    final text = body.trim();
+    if (text.isEmpty) return '';
+
+    final cleaned = text
+        .replaceAll(RegExp(r'foiz', caseSensitive: false), '')
+        .replaceAll(RegExp(r'\d{1,3}\s*%'), '')
+        .replaceAll(RegExp(r'\s+'), ' ')
+        .replaceAll(RegExp(r'\s*•\s*•\s*'), ' • ')
+        .replaceAll(RegExp(r'(?:\s*•\s*)+$'), '')
+        .trim();
+
+    return cleaned;
   }
 
   String _extractDiscountAmount(Map<String, dynamic> data) {
@@ -385,6 +617,25 @@ class NotificationDetailPage extends StatelessWidget {
     final parsed = num.tryParse(text);
     if (parsed == null) {
       return text;
+    }
+
+    return '${_formatMoney(parsed)} so\'m';
+  }
+
+  String _extractPaymentReminderAmount(Map<String, dynamic> data) {
+    final rawAmount = data['debt_amount'] ?? data['amount'] ?? data['paid_amount'];
+    if (rawAmount == null) {
+      return '';
+    }
+
+    final text = rawAmount.toString().trim();
+    if (text.isEmpty) {
+      return '';
+    }
+
+    final parsed = num.tryParse(text);
+    if (parsed == null) {
+      return text.endsWith('so\'m') ? text : '$text so\'m';
     }
 
     return '${_formatMoney(parsed)} so\'m';
@@ -502,6 +753,8 @@ class NotificationDetailPage extends StatelessWidget {
         return Icons.local_offer_rounded;
       case 'attendance':
         return Icons.fact_check_rounded;
+      case 'payment_reminder':
+        return Icons.notifications_active_rounded;
       default:
         return Icons.notifications_active_rounded;
     }
@@ -576,6 +829,44 @@ class _InfoChip extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _MiniReportChip extends StatelessWidget {
+  const _MiniReportChip({
+    required this.title,
+    required this.value,
+  });
+
+  final String title;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF7F9FC),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+      ),
+      child: RichText(
+        text: TextSpan(
+          style: const TextStyle(
+            fontSize: 13,
+            color: Color(0xFF243042),
+            fontWeight: FontWeight.w600,
+          ),
+          children: [
+            TextSpan(text: '$title: '),
+            TextSpan(
+              text: value,
+              style: const TextStyle(fontWeight: FontWeight.w800),
+            ),
+          ],
+        ),
       ),
     );
   }

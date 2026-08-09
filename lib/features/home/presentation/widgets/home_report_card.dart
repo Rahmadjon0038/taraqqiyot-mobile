@@ -73,7 +73,7 @@ class HomeReportCard extends StatelessWidget {
             child: Icon(
               Icons.calendar_month_rounded,
               size: 66,
-              color: const Color(0xFF4F46E5).withValues(alpha: 0.09),
+              color: const Color(0xFFA70E07).withValues(alpha: 0.09),
             ),
           ),
           Positioned(
@@ -82,7 +82,7 @@ class HomeReportCard extends StatelessWidget {
             child: Icon(
               Icons.auto_graph_rounded,
               size: 58,
-              color: const Color(0xFF4F46E5).withValues(alpha: 0.06),
+              color: const Color(0xFFA70E07).withValues(alpha: 0.06),
             ),
           ),
           Padding(
@@ -98,14 +98,14 @@ class HomeReportCard extends StatelessWidget {
                       height: 38,
                       decoration: BoxDecoration(
                         gradient: const LinearGradient(
-                          colors: [Color(0xFF6366F1), Color(0xFF4F46E5)],
+                          colors: [Color(0xFFA70E07), Color(0xFFDC2626)],
                           begin: Alignment.topLeft,
                           end: Alignment.bottomRight,
                         ),
                         borderRadius: BorderRadius.circular(18),
                         boxShadow: const [
                           BoxShadow(
-                            color: Color(0x334F46E5),
+                            color: Color(0x33A70E07),
                             blurRadius: 10,
                             offset: Offset(0, 5),
                           ),
@@ -261,23 +261,10 @@ class _LessonStatsPanel extends StatelessWidget {
                     icon: Icons.emoji_events_rounded,
                     label: 'Jami ball',
                     value: '$totalScore',
-                    color: const Color(0xFF4F46E5),
+                    color: const Color(0xFFA70E07),
                   ),
                 ),
                 if (gradingEnabled) ...[
-                  Container(
-                    width: 1,
-                    height: 30,
-                    color: const Color(0xFFD9E0F2),
-                  ),
-                  Expanded(
-                    child: _SummaryStat(
-                      icon: Icons.track_changes_rounded,
-                      label: 'Foiz',
-                      value: '$percent%',
-                      color: const Color(0xFF0EA5A0),
-                    ),
-                  ),
                   Container(
                     width: 1,
                     height: 30,
@@ -490,12 +477,12 @@ class _DateRow extends StatelessWidget {
           width: 28,
           height: 28,
           decoration: BoxDecoration(
-            color: const Color(0xFFEAF2FF),
+            color: const Color(0xFFFDEBEC),
             borderRadius: BorderRadius.circular(8),
           ),
           child: const Icon(
             Icons.calendar_month_rounded,
-            color: Color(0xFF4F46E5),
+            color: Color(0xFFA70E07),
             size: 15,
           ),
         ),
@@ -539,14 +526,14 @@ class _ActionButton extends StatelessWidget {
       height: 36,
       decoration: BoxDecoration(
         gradient: const LinearGradient(
-          colors: [Color(0xFF4F46E5), Color(0xFF5B5CE7)],
+          colors: [Color(0xFFA70E07), Color(0xFFDC2626)],
           begin: Alignment.centerLeft,
           end: Alignment.centerRight,
         ),
         borderRadius: BorderRadius.circular(8),
         boxShadow: const [
           BoxShadow(
-            color: Color(0x334F46E5),
+            color: Color(0x33A70E07),
             blurRadius: 14,
             offset: Offset(0, 8),
           ),

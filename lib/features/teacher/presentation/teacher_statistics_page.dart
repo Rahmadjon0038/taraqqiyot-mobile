@@ -1,3 +1,4 @@
+import 'dart:math' as math;
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -39,6 +40,14 @@ const double _statisticsPercentColumnWidth = 40;
 const double _statisticsFeedbackColumnWidth = 60;
 const double _statisticsColumnGap = 4;
 const double _statisticsHorizontalPadding = 16;
+typedef _StatisticsTableLayout = ({
+  double studentWidth,
+  double scoreWidth,
+  double totalWidth,
+  double percentWidth,
+  double feedbackWidth,
+  double tableWidth,
+});
 
 class TeacherStatisticsPage extends StatefulWidget {
   const TeacherStatisticsPage({
@@ -1555,6 +1564,55 @@ class _LessonStatisticsEditorSheetState
   List<_ReportColumnController> get _enabledColumns =>
       _columns.where((column) => column.enabled).toList();
 
+  _StatisticsTableLayout _layoutFor(double viewportWidth) {
+    final enabledColumns = _enabledColumns.length;
+    final gradingEnabled = _gradingEnabled;
+
+    final minTableWidth =
+        _statisticsStudentColumnWidth +
+        (_statisticsScoreColumnWidth * enabledColumns) +
+        _statisticsTotalColumnWidth +
+        (gradingEnabled
+            ? (_statisticsPercentColumnWidth + _statisticsFeedbackColumnWidth)
+            : 0) +
+        (_statisticsColumnGap * (enabledColumns + (gradingEnabled ? 4 : 2))) +
+        (_statisticsHorizontalPadding * 2);
+
+    final tableWidth = math.max(viewportWidth, minTableWidth);
+    final extra = tableWidth - minTableWidth;
+
+    if (extra <= 0) {
+      return (
+        studentWidth: _statisticsStudentColumnWidth,
+        scoreWidth: _statisticsScoreColumnWidth,
+        totalWidth: _statisticsTotalColumnWidth,
+        percentWidth: _statisticsPercentColumnWidth,
+        feedbackWidth: _statisticsFeedbackColumnWidth,
+        tableWidth: tableWidth,
+      );
+    }
+
+    final totalWeight =
+        3.0 +
+        (enabledColumns * 1.0) +
+        0.85 +
+        (gradingEnabled ? 1.0 + 1.15 : 0.0);
+    final studentExtra = extra * (3.0 / totalWeight);
+    final scoreExtra = extra * (1.0 / totalWeight);
+    final totalExtra = extra * (0.85 / totalWeight);
+    final percentExtra = gradingEnabled ? extra * (1.0 / totalWeight) : 0.0;
+    final feedbackExtra = gradingEnabled ? extra * (1.15 / totalWeight) : 0.0;
+
+    return (
+      studentWidth: _statisticsStudentColumnWidth + studentExtra,
+      scoreWidth: _statisticsScoreColumnWidth + scoreExtra,
+      totalWidth: _statisticsTotalColumnWidth + totalExtra,
+      percentWidth: _statisticsPercentColumnWidth + percentExtra,
+      feedbackWidth: _statisticsFeedbackColumnWidth + feedbackExtra,
+      tableWidth: tableWidth,
+    );
+  }
+
   int get _maxTotal =>
       _enabledColumns.fold(0, (sum, column) => sum + column.maxValue);
 
@@ -1564,17 +1622,6 @@ class _LessonStatisticsEditorSheetState
     }
     return 5;
   }
-
-  double get _statisticsTableWidth =>
-      _statisticsStudentColumnWidth +
-      (_statisticsScoreColumnWidth * _enabledColumns.length) +
-      _statisticsTotalColumnWidth +
-      (_gradingEnabled
-          ? _statisticsPercentColumnWidth + _statisticsFeedbackColumnWidth
-          : 0) +
-      (_statisticsColumnGap *
-          (_enabledColumns.length + (_gradingEnabled ? 4 : 2))) +
-      (_statisticsHorizontalPadding * 2);
 
   @override
   void initState() {
@@ -2399,7 +2446,7 @@ class _LessonStatisticsEditorSheetState
     );
   }
 
-  Widget _studentRow(int index) {
+  Widget _studentRow(int index, _StatisticsTableLayout layout) {
     final student = widget.students[index];
     final controllers = _controllers[index];
     final total = _totalFor(controllers);
@@ -2419,7 +2466,7 @@ class _LessonStatisticsEditorSheetState
       child: Row(
         children: [
           SizedBox(
-            width: _statisticsStudentColumnWidth,
+            width: layout.studentWidth,
             child: Padding(
               padding: const EdgeInsets.only(left: 8, right: 6),
               child: Column(
@@ -2457,7 +2504,7 @@ class _LessonStatisticsEditorSheetState
           const SizedBox(width: _statisticsColumnGap),
           for (final column in _enabledColumns) ...[
             SizedBox(
-              width: _statisticsScoreColumnWidth,
+              width: layout.scoreWidth,
               child: _scoreField(
                 controller: controllers.scores[column.key]!,
                 maxValue: column.maxValue,
@@ -2467,7 +2514,7 @@ class _LessonStatisticsEditorSheetState
             const SizedBox(width: _statisticsColumnGap),
           ],
           SizedBox(
-            width: _statisticsTotalColumnWidth,
+            width: layout.totalWidth,
             child: Text(
               '$total',
               textAlign: TextAlign.center,
@@ -2480,7 +2527,7 @@ class _LessonStatisticsEditorSheetState
           ),
           if (_gradingEnabled) ...[
             SizedBox(
-              width: _statisticsPercentColumnWidth,
+              width: layout.percentWidth,
               child: Text(
                 '$percent%',
                 textAlign: TextAlign.center,
@@ -2492,7 +2539,7 @@ class _LessonStatisticsEditorSheetState
               ),
             ),
             SizedBox(
-              width: _statisticsFeedbackColumnWidth,
+              width: layout.feedbackWidth,
               child: Container(
                 padding: const EdgeInsets.symmetric(
                   horizontal: 4,
@@ -2525,7 +2572,7 @@ class _LessonStatisticsEditorSheetState
   Widget build(BuildContext context) {
     final enabledColumns = _enabledColumns;
     return FractionallySizedBox(
-      heightFactor: 0.95,
+      heightFactor: 1.0,
       child: Material(
         color: const Color(0xFFF6F7FB),
         borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
@@ -2618,10 +2665,11 @@ class _LessonStatisticsEditorSheetState
               Expanded(
                 child: LayoutBuilder(
                   builder: (context, constraints) {
+                    final layout = _layoutFor(constraints.maxWidth);
                     return SingleChildScrollView(
                       scrollDirection: Axis.horizontal,
                       child: SizedBox(
-                        width: _statisticsTableWidth,
+                        width: layout.tableWidth,
                         height: constraints.maxHeight,
                         child: Column(
                           children: [
@@ -2682,10 +2730,10 @@ class _LessonStatisticsEditorSheetState
                                   ],
                                 ),
                               ),
-                            ),
-                            const SizedBox(height: 8),
-                            Expanded(
-                              child: widget.students.isEmpty
+                                    ),
+                                    const SizedBox(height: 8),
+                                    Expanded(
+                                      child: widget.students.isEmpty
                                   ? const Center(
                                       child: Text(
                                         'Bu dars uchun o\'quvchilar topilmadi',
@@ -2696,23 +2744,23 @@ class _LessonStatisticsEditorSheetState
                                         ),
                                       ),
                                     )
-                                  : ListView(
-                                      padding: const EdgeInsets.fromLTRB(
-                                        16,
-                                        0,
-                                        16,
-                                        16,
-                                      ),
-                                      children: [
-                                        for (
-                                          var i = 0;
-                                          i < widget.students.length;
-                                          i++
-                                        )
-                                          _studentRow(i),
-                                      ],
+                                          : ListView(
+                                              padding: const EdgeInsets.fromLTRB(
+                                                16,
+                                                0,
+                                                16,
+                                                16,
+                                              ),
+                                              children: [
+                                                for (
+                                                  var i = 0;
+                                                  i < widget.students.length;
+                                                  i++
+                                                )
+                                                  _studentRow(i, layout),
+                                              ],
+                                            ),
                                     ),
-                            ),
                           ],
                         ),
                       ),

@@ -540,6 +540,7 @@ class TeacherGroupStudent {
     required this.name,
     required this.surname,
     required this.phone,
+    required this.phone2,
     required this.groupStatus,
     required this.avatarKey,
     required this.avatarUrl,
@@ -550,6 +551,7 @@ class TeacherGroupStudent {
   final String name;
   final String surname;
   final String phone;
+  final String phone2;
 
   /// active | stopped | finished
   final String groupStatus;
@@ -571,6 +573,7 @@ class TeacherGroupStudent {
       name: _asString(json['name']),
       surname: _asString(json['surname']),
       phone: _asString(json['phone']),
+      phone2: _asString(json['phone2']),
       groupStatus: _asString(json['group_status']),
       avatarKey: _asString(json['avatar_key']),
       avatarUrl: _asString(json['avatar_url']),

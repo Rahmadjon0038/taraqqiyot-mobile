@@ -117,6 +117,34 @@ class _StudentAttendancePageState extends State<StudentAttendancePage> {
     super.dispose();
   }
 
+  /// Berilgan oyda talaba a'zo bo'lgan guruhlar.
+  /// Joriy oy uchun — haqiqatan HOZIR faol (myStatus == active) guruhlar,
+  /// chunki guruhdan chiqarilganda ba'zan left_at sanasi qo'yilmay
+  /// qolishi mumkin — shunda faqat sanaga (availableMonths) qarab
+  /// filtrlash yetarli emas.
+  /// O'tgan oylar uchun — availableMonths (tarix) asosida, hozirgi
+  /// holatidan qat'iy nazar, chunki o'sha paytda a'zo bo'lgan.
+  List<StudentGroupSummary> _groupsForMonth(String month) {
+    final isCurrentMonth = month == _currentMonthKey();
+    return _groups.where((group) {
+      if (!group.availableMonths.contains(month)) return false;
+      if (isCurrentMonth) return group.isActive;
+      return true;
+    }).toList();
+  }
+
+  StudentGroupSummary? _preferredGroupFor(String month, {int? preferredId}) {
+    final visible = _groupsForMonth(month);
+    final pool = visible.isNotEmpty ? visible : _groups;
+    if (pool.isEmpty) return null;
+    if (preferredId != null) {
+      for (final group in pool) {
+        if (group.groupId == preferredId) return group;
+      }
+    }
+    return pool.first;
+  }
+
   Future<void> _load() async {
     setState(() {
       _loading = true;
@@ -127,9 +155,11 @@ class _StudentAttendancePageState extends State<StudentAttendancePage> {
       final groups = await _groupsService.fetchMyGroups(widget.session);
       _groups = groups;
       if (_groups.isNotEmpty) {
-        final currentSelectedGroup = _groupById(_selectedGroupId);
-        _selectedGroupId =
-            currentSelectedGroup?.groupId ?? _groups.first.groupId;
+        final preferred = _preferredGroupFor(
+          _selectedMonth,
+          preferredId: _selectedGroupId,
+        );
+        _selectedGroupId = preferred?.groupId;
         _selectedMonth = _clampMonthKey(
           _selectedMonth,
           _groupStartMonthKey(_selectedGroupId),
@@ -187,9 +217,8 @@ class _StudentAttendancePageState extends State<StudentAttendancePage> {
     if (group?.availableMonths.isNotEmpty == true) {
       return group!.availableMonths.last;
     }
-    final parsed = group == null
-        ? null
-        : _parseMonthFromDateText(group.myJoinDate);
+    final parsed =
+        group == null ? null : _parseMonthFromDateText(group.myJoinDate);
     return parsed == null ? _currentMonthKey() : _monthKey(parsed);
   }
 
@@ -218,9 +247,8 @@ class _StudentAttendancePageState extends State<StudentAttendancePage> {
   void _selectMonth(String month) {
     if (_selectedMonth == month) return;
     final group = _groupById(_selectedGroupId);
-    final minMonthKey = group == null
-        ? null
-        : _groupStartMonthKey(group.groupId);
+    final minMonthKey =
+        group == null ? null : _groupStartMonthKey(group.groupId);
     final selected = _parseMonthKey(month);
     final minMonth = minMonthKey == null ? null : _parseMonthKey(minMonthKey);
     if (selected != null && minMonth != null && selected.isBefore(minMonth)) {
@@ -228,6 +256,14 @@ class _StudentAttendancePageState extends State<StudentAttendancePage> {
     }
     setState(() {
       _selectedMonth = month;
+      // Tanlangan guruh shu oyda mavjud bo'lmasa (masalan guruhdan
+      // chiqib ketgan bo'lsa-yu, boshqa oyga o'tilsa), shu oyda mavjud
+      // birinchi guruhga almashtiramiz.
+      final visible = _groupsForMonth(_selectedMonth);
+      if (visible.isNotEmpty &&
+          !visible.any((group) => group.groupId == _selectedGroupId)) {
+        _selectedGroupId = visible.first.groupId;
+      }
       _refreshSelectedDetail();
     });
   }
@@ -236,6 +272,11 @@ class _StudentAttendancePageState extends State<StudentAttendancePage> {
   Widget build(BuildContext context) {
     final selectedGroup = _groupById(_selectedGroupId);
     final months = _availableMonthsForGroup(selectedGroup);
+    // Tanlangan oyda mavjud guruhlar — joriy oy uchun bu "hozir
+    // o'qiyotgan" guruhlar bilan bir xil, o'tgan oy uchun esa o'sha
+    // paytdagi tarix saqlanib qoladi.
+    final visibleGroups = _groupsForMonth(_selectedMonth);
+    final chipGroups = visibleGroups.isNotEmpty ? visibleGroups : _groups;
 
     return RefreshIndicator(
       color: AppTheme.brandColor,
@@ -249,9 +290,15 @@ class _StudentAttendancePageState extends State<StudentAttendancePage> {
             subtitle: _formatMonthLabel(_selectedMonth),
           ),
           const SizedBox(height: 12),
-          if (_groups.isNotEmpty) ...[
+          _MonthSelect(
+            months: months,
+            selectedMonth: _selectedMonth,
+            onSelected: _selectMonth,
+          ),
+          const SizedBox(height: 12),
+          if (chipGroups.isNotEmpty) ...[
             _GroupChips(
-              groups: _groups,
+              groups: chipGroups,
               selectedGroupId: _selectedGroupId,
               onSelected: _selectGroup,
             ),
@@ -288,12 +335,6 @@ class _StudentAttendancePageState extends State<StudentAttendancePage> {
             ],
             const SizedBox(height: 12),
           ],
-          _MonthSelect(
-            months: months,
-            selectedMonth: _selectedMonth,
-            onSelected: _selectMonth,
-          ),
-          const SizedBox(height: 12),
           if (_loading)
             const _AttendanceLoadingSkeleton()
           else if (_errorText != null)
@@ -599,9 +640,8 @@ class _MonthSelect extends StatelessWidget {
                 color: selected ? AppTheme.brandColor : Colors.white,
                 borderRadius: BorderRadius.circular(16),
                 border: Border.all(
-                  color: selected
-                      ? AppTheme.brandColor
-                      : const Color(0xFFD4DAE6),
+                  color:
+                      selected ? AppTheme.brandColor : const Color(0xFFD4DAE6),
                 ),
               ),
               child: Text(
@@ -652,9 +692,8 @@ class _GroupChips extends StatelessWidget {
                 color: selected ? AppTheme.brandColor : Colors.white,
                 borderRadius: BorderRadius.circular(16),
                 border: Border.all(
-                  color: selected
-                      ? AppTheme.brandColor
-                      : const Color(0xFFD4DAE6),
+                  color:
+                      selected ? AppTheme.brandColor : const Color(0xFFD4DAE6),
                 ),
               ),
               child: Text(
@@ -784,8 +823,7 @@ class _AttendanceLessonCard extends StatelessWidget {
     final bool isHoliday = lesson.isHoliday;
     final lessonDate = _parseLessonDate(lesson.lessonDate);
     final today = DateTime.now();
-    final isFutureLesson =
-        lessonDate != null &&
+    final isFutureLesson = lessonDate != null &&
         DateTime(
           lessonDate.year,
           lessonDate.month,
@@ -1544,9 +1582,8 @@ String _formatDateHeader(String rawValue) {
     'noyabr',
     'dekabr',
   ];
-  final monthName = parsed.month >= 1 && parsed.month <= 12
-      ? months[parsed.month - 1]
-      : '';
+  final monthName =
+      parsed.month >= 1 && parsed.month <= 12 ? months[parsed.month - 1] : '';
   return '${parsed.day}- $monthName';
 }
 

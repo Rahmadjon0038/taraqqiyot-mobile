@@ -45,7 +45,11 @@ class _StudentGroupsPageState extends State<StudentGroupsPage> {
       builder: (context, snapshot) {
         final isLoading = snapshot.connectionState == ConnectionState.waiting;
         final error = snapshot.error;
-        final groups = snapshot.data ?? const <StudentGroupSummary>[];
+        // Faqat hozir o'qiyotgan (faol a'zolik) guruhlar — chiqib ketgan
+        // yoki bitirgan guruhlar bu ro'yxatda ko'rinmaydi.
+        final groups = (snapshot.data ?? const <StudentGroupSummary>[])
+            .where((group) => group.myStatus == 'active')
+            .toList();
 
         return RefreshIndicator(
           onRefresh: _reload,

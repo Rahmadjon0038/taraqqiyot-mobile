@@ -43,3 +43,12 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+# Signing kalitlar — hech qachon repo'ga tushmasin
+# (bularni birontasi allaqachon eski joyda commit qilingan bo'lsa,
+# git-tarixdan olib tashlash alohida masala — .gitignore buni tuzatmaydi)
+**/*.jks
+**/*.keystore
+key.properties
+taraqqiyot-key/
+android/key.properties

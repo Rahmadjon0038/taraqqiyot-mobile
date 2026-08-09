@@ -436,7 +436,11 @@ class NotificationService {
         message.data['title']?.toString() ??
         'Taraqqiyot';
     final body = notification?.body ?? message.data['body']?.toString() ?? '';
-    final data = <String, dynamic>{...message.data};
+    final data = <String, dynamic>{
+      ...message.data,
+      'title': title,
+      'body': body,
+    };
 
     await _localNotifications.show(
       message.hashCode,
@@ -489,7 +493,17 @@ class NotificationService {
   }
 
   void _handleRemoteMessageTap(RemoteMessage message) {
-    handleNotificationData(<String, dynamic>{...message.data});
+    final notification = message.notification;
+    final payload = <String, dynamic>{
+      ...message.data,
+    };
+    if (notification?.title != null && notification!.title!.trim().isNotEmpty) {
+      payload['title'] = notification.title!;
+    }
+    if (notification?.body != null && notification!.body!.trim().isNotEmpty) {
+      payload['body'] = notification.body!;
+    }
+    handleNotificationData(payload);
   }
 
   void _handleNotificationResponse(NotificationResponse response) {

@@ -3,16 +3,15 @@ import 'package:flutter/material.dart';
 
 import '../../../student/data/student_groups_service.dart';
 
-/// Oylik hisobot kartasi — tanlangan guruh bo'yicha teacher yuborgan
-/// report ballari line chart'da ko'rsatiladi. Har bir nuqta report yuborilgan
-/// kunning jami ballini bildiradi. Bir nechta guruh bo'lsa, chiplar orqali
-/// guruh tanlanadi.
+/// Oylik ballar kartasi — tanlangan fan/guruh bo'yicha studentning
+/// jamlangan ballari line chart'da ko'rsatiladi. Har bir nuqta o'sha kunning
+/// jami ballini bildiradi. Bir nechta fan bo'lsa, chiplar orqali fan tanlanadi.
 class HomeMonthlyProgressChart extends StatefulWidget {
   const HomeMonthlyProgressChart({
     super.key,
     required this.groups,
     required this.loadReports,
-    this.onTap,
+    this.onTapGroup,
   });
 
   final List<StudentGroupSummary> groups;
@@ -21,7 +20,7 @@ class HomeMonthlyProgressChart extends StatefulWidget {
   /// groupId null bo'lsa — barcha fanlar bo'yicha umumiy.
   final Future<StudentPointReportsData> Function(int? groupId) loadReports;
 
-  final VoidCallback? onTap;
+  final ValueChanged<StudentGroupSummary?>? onTapGroup;
 
   @override
   State<HomeMonthlyProgressChart> createState() =>
@@ -29,8 +28,8 @@ class HomeMonthlyProgressChart extends StatefulWidget {
 }
 
 class _HomeMonthlyProgressChartState extends State<HomeMonthlyProgressChart> {
-  static const _indigo = Color(0xFF4F46E5);
-  static const _indigoLight = Color(0xFF818CF8);
+  static const _indigo = Color(0xFFA70E07);
+  static const _indigoLight = Color(0xFFDC2626);
 
   int? _selectedGroupId;
 
@@ -40,21 +39,64 @@ class _HomeMonthlyProgressChartState extends State<HomeMonthlyProgressChart> {
   @override
   void initState() {
     super.initState();
-    _selectedGroupId = widget.groups.isNotEmpty
-        ? widget.groups.first.groupId
-        : null;
+    _selectedGroupId =
+        _displayGroups.isNotEmpty ? _displayGroups.first.groupId : null;
   }
 
   @override
   void didUpdateWidget(covariant HomeMonthlyProgressChart oldWidget) {
     super.didUpdateWidget(oldWidget);
     // Guruhlar keyin yuklanib kelsa, birinchi fanni tanlaymiz
-    final ids = widget.groups.map((g) => g.groupId).toSet();
+    final ids = _displayGroups.map((g) => g.groupId).toSet();
     if (_selectedGroupId == null || !ids.contains(_selectedGroupId)) {
-      _selectedGroupId = widget.groups.isNotEmpty
-          ? widget.groups.first.groupId
-          : null;
+      _selectedGroupId =
+          _displayGroups.isNotEmpty ? _displayGroups.first.groupId : null;
     }
+  }
+
+  List<StudentGroupSummary> get _displayGroups {
+    if (widget.groups.isEmpty) return const [];
+
+    final bySubject = <String, StudentGroupSummary>{};
+    for (final group in widget.groups) {
+      final key = group.subjectName.trim().isNotEmpty
+          ? group.subjectName.trim().toLowerCase()
+          : 'group-${group.groupId}';
+      final existing = bySubject[key];
+      if (existing == null) {
+        bySubject[key] = group;
+        continue;
+      }
+
+      final preferNext = _preferGroup(existing, group);
+      if (preferNext) {
+        bySubject[key] = group;
+      }
+    }
+
+    return bySubject.values.toList();
+  }
+
+  bool _preferGroup(StudentGroupSummary current, StudentGroupSummary next) {
+    if (current.isActive != next.isActive) {
+      return next.isActive;
+    }
+
+    final currentJoin = DateTime.tryParse(current.myJoinDate);
+    final nextJoin = DateTime.tryParse(next.myJoinDate);
+    if (currentJoin != null && nextJoin != null && currentJoin != nextJoin) {
+      return nextJoin.isAfter(currentJoin);
+    }
+
+    final currentCreated = DateTime.tryParse(current.createdDate);
+    final nextCreated = DateTime.tryParse(next.createdDate);
+    if (currentCreated != null &&
+        nextCreated != null &&
+        currentCreated != nextCreated) {
+      return nextCreated.isAfter(currentCreated);
+    }
+
+    return false;
   }
 
   Future<StudentPointReportsData> _reportsFor(int? groupId) {
@@ -65,7 +107,7 @@ class _HomeMonthlyProgressChartState extends State<HomeMonthlyProgressChart> {
   }
 
   StudentGroupSummary? get _selectedGroup {
-    for (final group in widget.groups) {
+    for (final group in _displayGroups) {
       if (group.groupId == _selectedGroupId) return group;
     }
     return null;
@@ -73,15 +115,14 @@ class _HomeMonthlyProgressChartState extends State<HomeMonthlyProgressChart> {
 
   /// Oxirgi ball olingan kundan orqaga qarab ketma-ket kunlarni sanaydi
   static int _streak(List<StudentPointDailyBreakdown> daily) {
-    final days =
-        daily
-            .where((d) => d.totalPoints > 0)
-            .map((d) => DateTime.tryParse(d.dayKey))
-            .whereType<DateTime>()
-            .map((d) => DateTime(d.year, d.month, d.day))
-            .toSet()
-            .toList()
-          ..sort();
+    final days = daily
+        .where((d) => d.totalPoints > 0)
+        .map((d) => DateTime.tryParse(d.dayKey))
+        .whereType<DateTime>()
+        .map((d) => DateTime(d.year, d.month, d.day))
+        .toSet()
+        .toList()
+      ..sort();
     if (days.isEmpty) return 0;
     var streak = 1;
     for (var i = days.length - 1; i > 0; i--) {
@@ -143,14 +184,14 @@ class _HomeMonthlyProgressChartState extends State<HomeMonthlyProgressChart> {
                 Container(
                   width: 30,
                   height: 30,
-                    decoration: BoxDecoration(
-                      gradient: const LinearGradient(
-                        colors: [_indigo, _indigoLight],
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                      ),
-                    borderRadius: BorderRadius.circular(16),
+                  decoration: BoxDecoration(
+                    gradient: const LinearGradient(
+                      colors: [_indigo, _indigoLight],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
                     ),
+                    borderRadius: BorderRadius.circular(16),
+                  ),
                   child: const Icon(
                     Icons.trending_up_rounded,
                     size: 16,
@@ -163,7 +204,7 @@ class _HomeMonthlyProgressChartState extends State<HomeMonthlyProgressChart> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       const Text(
-                        'Oylik hisobot',
+                        'Oylik o\'sish grafigi',
                         style: TextStyle(
                           fontSize: 12,
                           fontWeight: FontWeight.w800,
@@ -172,7 +213,7 @@ class _HomeMonthlyProgressChartState extends State<HomeMonthlyProgressChart> {
                       ),
                       if (_selectedGroup != null)
                         Text(
-                          'Report ballari',
+                          'Ballar',
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: const TextStyle(
@@ -186,20 +227,22 @@ class _HomeMonthlyProgressChartState extends State<HomeMonthlyProgressChart> {
                 ),
               ],
             ),
-            if (widget.groups.length > 1) ...[
+            if (_displayGroups.length > 1) ...[
               const SizedBox(height: 10),
               SizedBox(
                 height: 30,
                 child: ListView.separated(
                   scrollDirection: Axis.horizontal,
-                  itemCount: widget.groups.length,
+                  itemCount: _displayGroups.length,
                   separatorBuilder: (context, index) =>
                       const SizedBox(width: 6),
                   itemBuilder: (context, index) {
-                    final group = widget.groups[index];
+                    final group = _displayGroups[index];
                     final selected = group.groupId == _selectedGroupId;
                     return _SubjectChip(
-                      label: group.subjectName,
+                      label: group.subjectName.trim().isNotEmpty
+                          ? group.subjectName.trim()
+                          : group.groupName,
                       selected: selected,
                       onTap: () {
                         if (!selected) {
@@ -239,7 +282,7 @@ class _HomeMonthlyProgressChartState extends State<HomeMonthlyProgressChart> {
                           ),
                           decoration: BoxDecoration(
                             color: _indigo.withValues(alpha: 0.08),
-                        borderRadius: BorderRadius.circular(18),
+                            borderRadius: BorderRadius.circular(18),
                           ),
                           child: Text(
                             '$totalPoints ball',
@@ -288,7 +331,7 @@ class _HomeMonthlyProgressChartState extends State<HomeMonthlyProgressChart> {
                     ),
                     const SizedBox(height: 12),
                     if (spots.length < 2)
-                      const _ChartPlaceholder(text: 'Bu oyda hali report yo\'q')
+                      const _ChartPlaceholder(text: 'Bu oyda hali ball yo\'q')
                     else
                       SizedBox(
                         height: 130,
@@ -303,12 +346,12 @@ class _HomeMonthlyProgressChartState extends State<HomeMonthlyProgressChart> {
       ),
     );
 
-    if (widget.onTap == null) return card;
+    if (widget.onTapGroup == null) return card;
 
     return Material(
       color: Colors.transparent,
       child: InkWell(
-        onTap: widget.onTap,
+        onTap: () => widget.onTapGroup?.call(_selectedGroup),
         borderRadius: BorderRadius.circular(24),
         child: card,
       ),
@@ -327,7 +370,7 @@ class _SubjectChip extends StatelessWidget {
   final bool selected;
   final VoidCallback onTap;
 
-  static const _indigo = Color(0xFF4F46E5);
+  static const _indigo = Color(0xFFA70E07);
 
   @override
   Widget build(BuildContext context) {
@@ -359,8 +402,8 @@ class _ProgressLineChart extends StatelessWidget {
 
   final List<FlSpot> spots;
 
-  static const _indigo = Color(0xFF4F46E5);
-  static const _indigoLight = Color(0xFF818CF8);
+  static const _indigo = Color(0xFFA70E07);
+  static const _indigoLight = Color(0xFFDC2626);
 
   static const List<String> _uzMonths = [
     'yanvar',

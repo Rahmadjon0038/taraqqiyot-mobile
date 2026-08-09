@@ -197,50 +197,6 @@ class _TeacherAttendancePageState extends State<TeacherAttendancePage> {
             padding: const EdgeInsets.fromLTRB(12, 12, 12, 24),
             physics: const AlwaysScrollableScrollPhysics(),
             children: [
-              // Guruh tanlash chiplari
-              SizedBox(
-                height: 36,
-                child: ListView.separated(
-                  scrollDirection: Axis.horizontal,
-                  itemCount: groups.length,
-                  separatorBuilder: (context, index) =>
-                      const SizedBox(width: 6),
-                  itemBuilder: (context, index) {
-                    final group = groups[index];
-                    final selected = group.id == _selectedGroupId;
-                    return GestureDetector(
-                      onTap: () {
-                        if (!selected) _selectGroup(group);
-                      },
-                      child: AnimatedContainer(
-                        duration: const Duration(milliseconds: 180),
-                        padding: const EdgeInsets.symmetric(horizontal: 14),
-                        alignment: Alignment.center,
-                        decoration: BoxDecoration(
-                          color: selected ? AppTheme.brandColor : Colors.white,
-                          borderRadius: BorderRadius.circular(999),
-                          border: Border.all(
-                            color: selected
-                                ? AppTheme.brandColor
-                                : const Color(0xFFD6DDEA),
-                          ),
-                        ),
-                        child: Text(
-                          group.name,
-                          style: TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w800,
-                            color: selected
-                                ? Colors.white
-                                : const Color(0xFF475569),
-                          ),
-                        ),
-                      ),
-                    );
-                  },
-                ),
-              ),
-              const SizedBox(height: 8),
               // Oy tanlash — o'tgan oylar davomatini ko'rish uchun
               SizedBox(
                 height: 32,
@@ -276,6 +232,50 @@ class _TeacherAttendancePageState extends State<TeacherAttendancePage> {
                             fontWeight: FontWeight.w700,
                             color: selected
                                 ? AppTheme.brandColor
+                                : const Color(0xFF475569),
+                          ),
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ),
+              const SizedBox(height: 8),
+              // Guruh tanlash chiplari
+              SizedBox(
+                height: 36,
+                child: ListView.separated(
+                  scrollDirection: Axis.horizontal,
+                  itemCount: groups.length,
+                  separatorBuilder: (context, index) =>
+                      const SizedBox(width: 6),
+                  itemBuilder: (context, index) {
+                    final group = groups[index];
+                    final selected = group.id == _selectedGroupId;
+                    return GestureDetector(
+                      onTap: () {
+                        if (!selected) _selectGroup(group);
+                      },
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 180),
+                        padding: const EdgeInsets.symmetric(horizontal: 14),
+                        alignment: Alignment.center,
+                        decoration: BoxDecoration(
+                          color: selected ? AppTheme.brandColor : Colors.white,
+                          borderRadius: BorderRadius.circular(999),
+                          border: Border.all(
+                            color: selected
+                                ? AppTheme.brandColor
+                                : const Color(0xFFD6DDEA),
+                          ),
+                        ),
+                        child: Text(
+                          group.name,
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w800,
+                            color: selected
+                                ? Colors.white
                                 : const Color(0xFF475569),
                           ),
                         ),

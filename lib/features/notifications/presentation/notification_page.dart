@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 
 import '../../../app/theme/app_theme.dart';
@@ -194,16 +196,24 @@ class _NotificationPageState extends State<NotificationPage> {
         return 'Dars';
       case 'report':
         return 'Hisobot';
+      case 'payment_reminder':
+        return 'To‘lov ogohlantiruvi';
       default:
         return 'Xabar';
     }
   }
 
   String _displayTitle(NotificationRecord notification) {
-    if (notification.type.trim().toLowerCase() == 'attendance') {
-      return 'Davomat belgilandi';
-    }
-    return notification.title;
+    final type = notification.type.trim().toLowerCase();
+    final baseTitle = type == 'attendance'
+        ? 'Davomat belgilandi'
+        : notification.title;
+    // Ota-onalar uchun eng muhim narsa — qaysi FAN bo'yicha xabar kelgani.
+    // Shuning uchun sarlavhada birinchi o'rinda fan nomi ko'rsatiladi.
+    final subjectName =
+        notification.data['subject_name']?.toString().trim() ?? '';
+    if (subjectName.isEmpty) return baseTitle;
+    return '$subjectName — $baseTitle';
   }
 
   IconData _categoryIcon(String type) {
@@ -216,6 +226,8 @@ class _NotificationPageState extends State<NotificationPage> {
         return Icons.school_rounded;
       case 'report':
         return Icons.assignment_turned_in_rounded;
+      case 'payment_reminder':
+        return Icons.payments_rounded;
       default:
         return Icons.notifications_active_rounded;
     }
@@ -271,22 +283,93 @@ class _NotificationPageState extends State<NotificationPage> {
       }
     }
 
-    if (type == 'report') {
+    if (type == 'payment_reminder') {
       final groupName = data['group_name']?.toString().trim() ?? '';
-      final total = data['total']?.toString().trim() ?? '';
-      final percent = data['percent']?.toString().trim() ?? '';
-      // "Ball" rejimida (grading_enabled=false) foiz ma'noga ega emas.
-      final gradingEnabled = data['grading_enabled']?.toString() != 'false';
+      final subjectName = data['subject_name']?.toString().trim() ?? '';
+      final debtAmount = data['debt_amount']?.toString().trim() ?? '';
+      final reminderMessage = data['reminder_message']?.toString().trim() ?? '';
       final parts = <String>[];
+      if (subjectName.isNotEmpty) parts.add(subjectName);
       if (groupName.isNotEmpty) parts.add(groupName);
-      if (total.isNotEmpty) parts.add('$total ball');
-      if (gradingEnabled && percent.isNotEmpty) parts.add('$percent%');
+      if (debtAmount.isNotEmpty) parts.add('Qarz: $debtAmount so\'m');
+      if (reminderMessage.isNotEmpty) parts.add(reminderMessage);
       if (parts.isNotEmpty) {
         return parts.join(' • ');
       }
     }
 
+    if (type == 'report') {
+      final groupName = data['group_name']?.toString().trim() ?? '';
+      final total = data['total']?.toString().trim() ?? '';
+      final reportColumns = _extractReportColumns(data);
+      final parts = <String>[];
+      if (groupName.isNotEmpty) parts.add(groupName);
+      if (reportColumns.isNotEmpty) {
+        parts.addAll(
+          reportColumns
+              .map((item) => item['preview']?.toString().trim() ?? '')
+              .where((part) => part.isNotEmpty),
+        );
+      }
+      if (total.isNotEmpty) parts.add('Jami $total ball');
+      if (parts.isNotEmpty) {
+        return parts.join(' • ');
+      }
+      final cleanedBody = _cleanReportBody(notification.body);
+      if (cleanedBody.isNotEmpty) {
+        return cleanedBody;
+      }
+    }
+
     return notification.body;
+  }
+
+  List<Map<String, dynamic>> _extractReportColumns(Map<String, dynamic> data) {
+    final rawColumns = data['report_columns'];
+    List<dynamic>? columnsList;
+    if (rawColumns is List) {
+      columnsList = rawColumns;
+    } else if (rawColumns is String && rawColumns.trim().isNotEmpty) {
+      try {
+        final decoded = jsonDecode(rawColumns);
+        if (decoded is List) {
+          columnsList = decoded;
+        }
+      } catch (_) {
+        columnsList = null;
+      }
+    }
+
+    if (columnsList == null) return const <Map<String, dynamic>>[];
+
+    return columnsList
+        .whereType<Map>()
+        .map((item) {
+          final map = Map<String, dynamic>.from(item);
+          final label = map['label']?.toString().trim() ?? '';
+          final value = map['value']?.toString().trim() ?? '';
+          return <String, dynamic>{
+            ...map,
+            'preview': label.isNotEmpty && value.isNotEmpty ? '$label $value' : '',
+          };
+        })
+        .where((item) => item['preview']?.toString().trim().isNotEmpty == true)
+      .toList();
+  }
+
+  String _cleanReportBody(String body) {
+    final text = body.trim();
+    if (text.isEmpty) return '';
+
+    final cleaned = text
+        .replaceAll(RegExp(r'foiz', caseSensitive: false), '')
+        .replaceAll(RegExp(r'\d{1,3}\s*%'), '')
+        .replaceAll(RegExp(r'\s+'), ' ')
+        .replaceAll(RegExp(r'\s*•\s*•\s*'), ' • ')
+        .replaceAll(RegExp(r'(?:\s*•\s*)+$'), '')
+        .trim();
+
+    return cleaned;
   }
 
   String _createdAtLabel(String raw) {

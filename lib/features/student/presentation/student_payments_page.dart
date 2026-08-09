@@ -498,8 +498,6 @@ class _PaymentCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final paymentStatus = _paymentStatusLabel(enrollment.paymentStatus);
     final statusColor = _paymentStatusColor(enrollment.paymentStatus);
-    final monthlyStatus = _monthlyStatusLabel(enrollment.monthlyStatus);
-    final monthlyStatusColor = _monthlyStatusColor(enrollment.monthlyStatus);
     final paidRatio = enrollment.requiredAmount > 0
         ? (enrollment.paidAmount / enrollment.requiredAmount).clamp(0.0, 1.0)
         : 0.0;
@@ -662,11 +660,6 @@ class _PaymentCard extends StatelessWidget {
                   spacing: 6,
                   runSpacing: 6,
                   children: [
-                    _MiniChip(
-                      icon: Icons.how_to_reg_rounded,
-                      label:
-                          'Davomat: ${enrollment.attendedLessons}/${enrollment.totalLessons} • ${enrollment.attendancePercentage.toStringAsFixed(0)}%',
-                    ),
                     if (enrollment.lastPaymentDate.isNotEmpty)
                       _MiniChip(
                         icon: Icons.event_rounded,
@@ -679,12 +672,6 @@ class _PaymentCard extends StatelessWidget {
                             'Chegirma: ${_formatMoney(enrollment.discountAmount)}',
                         color: const Color(0xFF8B5CF6),
                       ),
-                    _MiniChip(
-                      icon: Icons.circle,
-                      iconSize: 7,
-                      label: monthlyStatus,
-                      color: monthlyStatusColor,
-                    ),
                   ],
                 ),
               ],
@@ -1089,28 +1076,3 @@ Color _paymentStatusColor(String rawStatus) {
   }
 }
 
-String _monthlyStatusLabel(String rawStatus) {
-  switch (rawStatus) {
-    case 'active':
-      return 'Faol';
-    case 'stopped':
-      return 'To\'xtagan';
-    case 'finished':
-      return 'Bitirgan';
-    default:
-      return rawStatus.isEmpty ? 'Noma\'lum' : rawStatus;
-  }
-}
-
-Color _monthlyStatusColor(String rawStatus) {
-  switch (rawStatus) {
-    case 'active':
-      return const Color(0xFF16934F);
-    case 'stopped':
-      return const Color(0xFFB45309);
-    case 'finished':
-      return const Color(0xFF8B5CF6);
-    default:
-      return const Color(0xFF64748B);
-  }
-}

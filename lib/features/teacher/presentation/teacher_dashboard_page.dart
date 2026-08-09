@@ -895,6 +895,32 @@ class _AttendanceRow extends StatelessWidget {
                   color: Color(0xFF7B8495),
                 ),
               ),
+              if (snapshot.studentPhone.trim().isNotEmpty) ...[
+                const SizedBox(height: 2),
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(
+                      Icons.call_rounded,
+                      size: 10.5,
+                      color: Color(0xFF7B8495),
+                    ),
+                    const SizedBox(width: 3),
+                    Flexible(
+                      child: Text(
+                        snapshot.studentPhone,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontSize: 10.5,
+                          fontWeight: FontWeight.w600,
+                          color: Color(0xFF7B8495),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
             ],
           ),
         ),

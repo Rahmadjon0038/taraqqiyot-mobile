@@ -35,8 +35,7 @@ class _StudentPointReportsPageState extends State<StudentPointReportsPage> {
   void initState() {
     super.initState();
     final initialMonth = widget.initialMonth?.trim();
-    _selectedMonth =
-        (initialMonth != null &&
+    _selectedMonth = (initialMonth != null &&
             RegExp(r'^\d{4}-\d{2}$').hasMatch(initialMonth))
         ? initialMonth
         : _currentMonthKey();
@@ -51,88 +50,12 @@ class _StudentPointReportsPageState extends State<StudentPointReportsPage> {
   }
 
   Future<void> _reload() async {
-    setState(() {
-      _groupsFuture = _service.fetchMyGroups(widget.session);
-    });
-    final groups = await _groupsFuture;
-    if (!mounted) return;
-    if (groups.isEmpty) {
-      setState(() {
-        _selectedGroupId = null;
-        _reportsFuture = null;
-        _lessonReportsFuture = null;
-      });
-      return;
-    }
-    final selected = groups.any((group) => group.groupId == _selectedGroupId)
-        ? _selectedGroupId
-        : groups.first.groupId;
-    final selectedGroup = groups.firstWhere(
-      (group) => group.groupId == selected,
-      orElse: () => groups.first,
-    );
-    final validMonth = _monthForGroup(selectedGroup, preferred: _selectedMonth);
-    setState(() {
-      _selectedGroupId = selected;
-      _selectedMonth = validMonth;
-      _reportsFuture = _service.fetchMyPointReports(
-        widget.session,
-        month: validMonth,
-        groupId: _selectedGroupId,
-      );
-      _lessonReportsFuture = selected == null
-          ? null
-          : _service.fetchMyGroupInfo(
-              widget.session,
-              selected,
-              month: validMonth,
-            );
-    });
-    final reportsFuture = _reportsFuture;
-    if (reportsFuture != null) {
-      await reportsFuture;
-    }
+    await _loadStateForMonth(_selectedMonth, preserveSelection: true);
   }
 
   Future<void> _loadInitialSelection() async {
     try {
-      final groups = await _groupsFuture;
-      if (!mounted) return;
-      if (groups.isEmpty) {
-        setState(() {
-          _reportsFuture = null;
-          _lessonReportsFuture = null;
-        });
-        return;
-      }
-      final initialGroup = widget.initialGroupId;
-      final selected = groups.any((group) => group.groupId == initialGroup)
-          ? initialGroup
-          : groups.first.groupId;
-      final selectedGroup = groups.firstWhere(
-        (group) => group.groupId == selected,
-        orElse: () => groups.first,
-      );
-      final validMonth = _monthForGroup(
-        selectedGroup,
-        preferred: _selectedMonth,
-      );
-      setState(() {
-        _selectedGroupId = selected;
-        _selectedMonth = validMonth;
-        _reportsFuture = _service.fetchMyPointReports(
-          widget.session,
-          month: validMonth,
-          groupId: _selectedGroupId,
-        );
-        _lessonReportsFuture = selected == null
-            ? null
-            : _service.fetchMyGroupInfo(
-                widget.session,
-                selected,
-                month: validMonth,
-              );
-      });
+      await _loadStateForMonth(_selectedMonth, initialGroupId: widget.initialGroupId);
     } catch (_) {
       if (!mounted) return;
       setState(() {
@@ -144,39 +67,71 @@ class _StudentPointReportsPageState extends State<StudentPointReportsPage> {
 
   void _selectGroup(StudentGroupSummary group) {
     if (_selectedGroupId == group.groupId) return;
-    final validMonth = _monthForGroup(group, preferred: _selectedMonth);
     setState(() {
       _selectedGroupId = group.groupId;
-      _selectedMonth = validMonth;
       _reportsFuture = _service.fetchMyPointReports(
         widget.session,
-        month: validMonth,
+        month: _selectedMonth,
         groupId: _selectedGroupId,
       );
       _lessonReportsFuture = _service.fetchMyGroupInfo(
         widget.session,
         group.groupId,
-        month: validMonth,
+        month: _selectedMonth,
       );
     });
   }
 
   void _selectMonth(String monthKey) {
     if (_selectedMonth == monthKey) return;
+    _loadStateForMonth(monthKey, preserveSelection: true);
+  }
+
+  Future<void> _loadStateForMonth(
+    String monthKey, {
+    bool preserveSelection = false,
+    int? initialGroupId,
+  }) async {
+    final groupsFuture = _service.fetchMyGroups(
+      widget.session,
+      month: monthKey,
+    );
     setState(() {
+      _groupsFuture = groupsFuture;
       _selectedMonth = monthKey;
-      if (_selectedGroupId != null) {
-        _reportsFuture = _service.fetchMyPointReports(
-          widget.session,
-          month: monthKey,
-          groupId: _selectedGroupId,
-        );
-        _lessonReportsFuture = _service.fetchMyGroupInfo(
-          widget.session,
-          _selectedGroupId!,
-          month: monthKey,
-        );
-      }
+    });
+
+    final groups = await groupsFuture;
+    if (!mounted) return;
+    if (groups.isEmpty) {
+      setState(() {
+        _selectedGroupId = null;
+        _reportsFuture = null;
+        _lessonReportsFuture = null;
+      });
+      return;
+    }
+
+    final desiredGroupId = preserveSelection
+        ? _selectedGroupId
+        : (initialGroupId ?? widget.initialGroupId);
+    final selectedGroup = groups.firstWhere(
+      (group) => group.groupId == desiredGroupId,
+      orElse: () => groups.first,
+    );
+
+    setState(() {
+      _selectedGroupId = selectedGroup.groupId;
+      _reportsFuture = _service.fetchMyPointReports(
+        widget.session,
+        month: monthKey,
+        groupId: selectedGroup.groupId,
+      );
+      _lessonReportsFuture = _service.fetchMyGroupInfo(
+        widget.session,
+        selectedGroup.groupId,
+        month: monthKey,
+      );
     });
   }
 
@@ -190,12 +145,10 @@ class _StudentPointReportsPageState extends State<StudentPointReportsPage> {
     final current = DateTime(now.year, now.month);
     final startDate = _parseDdMmYyyy(group?.myJoinDate ?? '');
     final leaveDate = _parseDdMmYyyy(group?.myLeaveDate ?? '');
-    var start = startDate == null
-        ? current
-        : DateTime(startDate.year, startDate.month);
-    var end = leaveDate == null
-        ? current
-        : DateTime(leaveDate.year, leaveDate.month);
+    var start =
+        startDate == null ? current : DateTime(startDate.year, startDate.month);
+    var end =
+        leaveDate == null ? current : DateTime(leaveDate.year, leaveDate.month);
     if (start.isAfter(current)) start = current;
     if (end.isAfter(current)) end = current;
     if (end.isBefore(start)) end = start;
@@ -207,22 +160,6 @@ class _StudentPointReportsPageState extends State<StudentPointReportsPage> {
       cursor = DateTime(cursor.year, cursor.month - 1);
     }
     return months;
-  }
-
-  String _monthForGroup(
-    StudentGroupSummary group, {
-    String? preferred,
-  }) {
-    final months = _monthOptionsFor(group);
-    if (months.isEmpty) {
-      return preferred != null && RegExp(r'^\d{4}-\d{2}$').hasMatch(preferred)
-          ? preferred
-          : _currentMonthKey();
-    }
-    if (preferred != null && months.contains(preferred)) {
-      return preferred;
-    }
-    return months.first;
   }
 
   String _bestMonthForLessonReports(
@@ -239,8 +176,7 @@ class _StudentPointReportsPageState extends State<StudentPointReportsPage> {
     final uniqueMonths = reportMonths.toSet().toList()
       ..sort((a, b) => b.compareTo(a));
     if (uniqueMonths.isEmpty) {
-      return preferred != null &&
-              RegExp(r'^\d{4}-\d{2}$').hasMatch(preferred)
+      return preferred != null && RegExp(r'^\d{4}-\d{2}$').hasMatch(preferred)
           ? preferred
           : _currentMonthKey();
     }
@@ -445,16 +381,12 @@ class _StudentPointReportsPageState extends State<StudentPointReportsPage> {
                             return const _LoadingCard(height: 220);
                           }
 
-                          final reportSection =
-                              reportError != null || report == null
+                          final reportSection = reportError != null ||
+                                  report == null
                               ? const SizedBox.shrink()
                               : Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
-                                    _DailyStatsCard(
-                                      dailyBreakdown: report.dailyBreakdown,
-                                    ),
-                                    const SizedBox(height: 12),
                                     _BreakdownCard(breakdown: report.breakdown),
                                   ],
                                 );
@@ -484,20 +416,23 @@ class _StudentPointReportsPageState extends State<StudentPointReportsPage> {
                                       onRetry: _reload,
                                     );
                                   }
-                                  final fallbackMonth = _bestMonthForLessonReports(
+                                  final fallbackMonth =
+                                      _bestMonthForLessonReports(
                                     lessonDetail.lessonReports,
                                     preferred: _selectedMonth,
                                   );
                                   if (fallbackMonth != _selectedMonth &&
                                       lessonDetail.lessonReports.isNotEmpty) {
-                                    WidgetsBinding.instance.addPostFrameCallback((
+                                    WidgetsBinding.instance
+                                        .addPostFrameCallback((
                                       _,
                                     ) {
                                       if (!mounted) return;
                                       _selectMonth(fallbackMonth);
                                     });
                                   }
-                                  final lessonReports = lessonDetail.lessonReports
+                                  final lessonReports = lessonDetail
+                                      .lessonReports
                                       .where(
                                         (report) =>
                                             _monthFromLessonReport(report) ==
@@ -600,145 +535,6 @@ class _MonthHeader extends StatelessWidget {
               ],
             ),
           ),
-        ],
-      ),
-    );
-  }
-}
-
-class _DailyStatsCard extends StatelessWidget {
-  const _DailyStatsCard({required this.dailyBreakdown});
-
-  final List<StudentPointDailyBreakdown> dailyBreakdown;
-
-  @override
-  Widget build(BuildContext context) {
-    final todayKey = _todayKey();
-
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFFE6EBF3)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const _SectionHeader(
-            icon: Icons.calendar_month_rounded,
-            title: 'Dars kunlari bo\'yicha hisobotlar',
-          ),
-          const SizedBox(height: 12),
-          if (dailyBreakdown.isEmpty)
-            const Text(
-              'Hozircha bu oy uchun kunlik ma\'lumot yo\'q',
-              style: TextStyle(
-                fontSize: 12.5,
-                fontWeight: FontWeight.w600,
-                color: Color(0xFF7B8495),
-              ),
-            )
-          else
-            for (var i = 0; i < dailyBreakdown.length; i++) ...[
-              Builder(
-                builder: (context) {
-                  final day = dailyBreakdown[i];
-                  final isToday = day.dayKey == todayKey;
-                  final positive = day.totalPoints >= 0;
-                  return Row(
-                    children: [
-                      // Sana kvadrati
-                      Container(
-                        width: 44,
-                        height: 44,
-                        decoration: BoxDecoration(
-                          color: isToday
-                              ? AppTheme.brandColor.withValues(alpha: 0.08)
-                              : const Color(0xFFF4F6FA),
-                          borderRadius: BorderRadius.circular(16),
-                          border: isToday
-                              ? Border.all(
-                                  color: AppTheme.brandColor.withValues(
-                                    alpha: 0.35,
-                                  ),
-                                )
-                              : null,
-                        ),
-                        alignment: Alignment.center,
-                        child: Text(
-                          isToday ? 'Bugun' : _dayShortLabel(day.dayKey),
-                          textAlign: TextAlign.center,
-                          style: TextStyle(
-                            fontSize: isToday ? 10 : 14,
-                            fontWeight: FontWeight.w900,
-                            color: isToday
-                                ? AppTheme.brandColor
-                                : const Color(0xFF445064),
-                            height: 1.05,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              _formatDayKey(day.dayKey),
-                              style: const TextStyle(
-                                fontSize: 13,
-                                fontWeight: FontWeight.w800,
-                                color: Color(0xFF182033),
-                              ),
-                            ),
-                            const SizedBox(height: 2),
-                            Text(
-                              '${day.totalEvents} ta dars yozuvi',
-                              style: const TextStyle(
-                                fontSize: 11,
-                                fontWeight: FontWeight.w600,
-                                color: Color(0xFF8A93A5),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 9,
-                          vertical: 4,
-                        ),
-                        decoration: BoxDecoration(
-                          color: positive
-                              ? const Color(0xFF16934F).withValues(alpha: 0.08)
-                              : const Color(0xFFDC2626).withValues(alpha: 0.08),
-                          borderRadius: BorderRadius.circular(16),
-                        ),
-                        child: Text(
-                          positive
-                              ? '+${day.totalPoints} ball'
-                              : '${day.totalPoints} ball',
-                          style: TextStyle(
-                            fontSize: 11.5,
-                            fontWeight: FontWeight.w900,
-                            color: positive
-                                ? const Color(0xFF16934F)
-                                : const Color(0xFFDC2626),
-                          ),
-                        ),
-                      ),
-                    ],
-                  );
-                },
-              ),
-              if (i < dailyBreakdown.length - 1) ...[
-                const SizedBox(height: 8),
-                const Divider(height: 1, color: Color(0xFFEDF1F7)),
-                const SizedBox(height: 8),
-              ],
-            ],
         ],
       ),
     );
@@ -976,9 +772,8 @@ class _LessonReportTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final visibleColumns = report.columns
-        .where((column) => column.enabled)
-        .toList();
+    final visibleColumns =
+        report.columns.where((column) => column.enabled).toList();
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
@@ -1053,76 +848,74 @@ class _LessonReportTile extends StatelessWidget {
                             const DataColumn(label: Text('Baho')),
                           ],
                         ],
-                        rows: report.rows
-                            .map(
-                              (row) {
-                                final isMe = row.studentId == currentStudentId;
-                                return DataRow(
-                                color: isMe
-                                    ? WidgetStateProperty.all(
-                                        _selfRowHighlight,
-                                      )
-                                    : null,
-                                cells: [
+                        rows: report.rows.map(
+                          (row) {
+                            final isMe = row.studentId == currentStudentId;
+                            return DataRow(
+                              color: isMe
+                                  ? WidgetStateProperty.all(
+                                      _selfRowHighlight,
+                                    )
+                                  : null,
+                              cells: [
+                                DataCell(
+                                  SizedBox(
+                                    width: 130,
+                                    child: Text(
+                                      _formatStudentName(row.studentName),
+                                      maxLines: 2,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: isMe
+                                          ? const TextStyle(
+                                              fontWeight: FontWeight.w900,
+                                            )
+                                          : null,
+                                    ),
+                                  ),
+                                ),
+                                for (final column in visibleColumns)
                                   DataCell(
-                                    SizedBox(
-                                      width: 130,
+                                    Text('${row.valueForColumn(column.key)}'),
+                                  ),
+                                DataCell(Text('${row.total}')),
+                                if (report.gradingEnabled) ...[
+                                  DataCell(Text('${row.percent}%')),
+                                  DataCell(
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 8,
+                                        vertical: 3,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color: _reportTone(
+                                          row.feedback,
+                                        ).badgeBg,
+                                        borderRadius: BorderRadius.circular(
+                                          16,
+                                        ),
+                                        border: Border.all(
+                                          color: _reportTone(
+                                            row.feedback,
+                                          ).border,
+                                        ),
+                                      ),
                                       child: Text(
-                                        _formatStudentName(row.studentName),
-                                        maxLines: 2,
-                                        overflow: TextOverflow.ellipsis,
-                                        style: isMe
-                                            ? const TextStyle(
-                                                fontWeight: FontWeight.w900,
-                                              )
-                                            : null,
+                                        _feedbackLabelUz(row.feedback),
+                                        style: TextStyle(
+                                          fontSize: 10,
+                                          fontWeight: FontWeight.w900,
+                                          color: _reportTone(
+                                            row.feedback,
+                                          ).badgeFg,
+                                        ),
                                       ),
                                     ),
                                   ),
-                                  for (final column in visibleColumns)
-                                    DataCell(
-                                      Text('${row.valueForColumn(column.key)}'),
-                                    ),
-                                  DataCell(Text('${row.total}')),
-                                  if (report.gradingEnabled) ...[
-                                    DataCell(Text('${row.percent}%')),
-                                    DataCell(
-                                      Container(
-                                        padding: const EdgeInsets.symmetric(
-                                          horizontal: 8,
-                                          vertical: 3,
-                                        ),
-                                        decoration: BoxDecoration(
-                                          color: _reportTone(
-                                            row.feedback,
-                                          ).badgeBg,
-                                          borderRadius: BorderRadius.circular(
-                                            16,
-                                          ),
-                                          border: Border.all(
-                                            color: _reportTone(
-                                              row.feedback,
-                                            ).border,
-                                          ),
-                                        ),
-                                        child: Text(
-                                          _feedbackLabelUz(row.feedback),
-                                          style: TextStyle(
-                                            fontSize: 10,
-                                            fontWeight: FontWeight.w900,
-                                            color: _reportTone(
-                                              row.feedback,
-                                            ).badgeFg,
-                                          ),
-                                        ),
-                                      ),
-                                    ),
-                                  ],
                                 ],
-                                );
-                              },
-                            )
-                            .toList(),
+                              ],
+                            );
+                          },
+                        ).toList(),
                       ),
                     ),
                   ),
@@ -1333,43 +1126,7 @@ String _monthLabel(String monthKey) {
     'noyabr',
     'dekabr',
   ];
-  final monthName = month >= 1 && month <= months.length
-      ? months[month - 1]
-      : monthKey;
+  final monthName =
+      month >= 1 && month <= months.length ? months[month - 1] : monthKey;
   return '$monthName $year';
-}
-
-String _todayKey() {
-  final now = DateTime.now();
-  return '${now.year.toString().padLeft(4, '0')}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
-}
-
-String _formatDayKey(String dayKey) {
-  final match = RegExp(r'^(\d{4})-(\d{2})-(\d{2})$').firstMatch(dayKey.trim());
-  if (match == null) return dayKey;
-  final year = int.tryParse(match.group(1)!) ?? DateTime.now().year;
-  final month = int.tryParse(match.group(2)!) ?? DateTime.now().month;
-  final day = int.tryParse(match.group(3)!) ?? DateTime.now().day;
-  const months = [
-    'yanvar',
-    'fevral',
-    'mart',
-    'aprel',
-    'may',
-    'iyun',
-    'iyul',
-    'avgust',
-    'sentabr',
-    'oktabr',
-    'noyabr',
-    'dekabr',
-  ];
-  if (month < 1 || month > months.length) return dayKey;
-  return '$day ${months[month - 1]} $year';
-}
-
-String _dayShortLabel(String dayKey) {
-  final match = RegExp(r'^(\d{4})-(\d{2})-(\d{2})$').firstMatch(dayKey.trim());
-  if (match == null) return dayKey;
-  return match.group(3) ?? dayKey;
 }

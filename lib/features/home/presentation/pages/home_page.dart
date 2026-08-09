@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 
 import '../../../../app/theme/app_theme.dart';
@@ -74,32 +75,32 @@ class _HomePageState extends State<HomePage> {
             switchOutCurve: Curves.easeIn,
             child: switch (_currentIndex) {
               0 => _HomeCenterContent(
-                key: const ValueKey('home'),
-                session: widget.session,
-                onOpenPayments: () => setState(() => _currentIndex = 3),
-              ),
+                  key: const ValueKey('home'),
+                  session: widget.session,
+                  onOpenPayments: () => setState(() => _currentIndex = 3),
+                ),
               1 => StudentGroupsPage(
-                key: const ValueKey('student-groups'),
-                session: widget.session,
-              ),
+                  key: const ValueKey('student-groups'),
+                  session: widget.session,
+                ),
               2 => StudentAttendancePage(
-                key: const ValueKey('student-attendance'),
-                session: widget.session,
-              ),
+                  key: const ValueKey('student-attendance'),
+                  session: widget.session,
+                ),
               3 => StudentPaymentsPage(
-                key: const ValueKey('student-payments'),
-                session: widget.session,
-              ),
+                  key: const ValueKey('student-payments'),
+                  session: widget.session,
+                ),
               4 => SettingsPage(
-                key: const ValueKey('settings'),
-                session: widget.session,
-                onLogout: widget.onLogout,
-                onSessionUpdated: widget.onSessionUpdated,
-              ),
+                  key: const ValueKey('settings'),
+                  session: widget.session,
+                  onLogout: widget.onLogout,
+                  onSessionUpdated: widget.onSessionUpdated,
+                ),
               _ => _SectionPlaceholderPage(
-                key: ValueKey('section-$_currentIndex'),
-                title: strings.studentTabTitles[_currentIndex],
-              ),
+                  key: ValueKey('section-$_currentIndex'),
+                  title: strings.studentTabTitles[_currentIndex],
+                ),
             },
           ),
         ),
@@ -377,7 +378,7 @@ class _HomeFeedState extends State<_HomeFeed> {
   late Future<StudentPaymentsResponse> _paymentsFuture;
   late Future<HomeContent> _contentFuture;
   late String _month;
-  final ScrollController _groupCardsController = ScrollController();
+  PageController? _groupCardsController;
   final Map<int, Future<StudentGroupDetails>> _groupDetailsCache = {};
 
   final Set<String> _seenStories = <String>{};
@@ -396,31 +397,28 @@ class _HomeFeedState extends State<_HomeFeed> {
   }
 
   @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_groupCardsController == null) {
+      // Yangiliklar karuseli bilan bir xil formula — karta deyarli
+      // to'liq ekranni egallaydi, keyingi karta chekkasi juda ozgina
+      // ko'rinadi (bo'sh joy qolmaydi).
+      final width = MediaQuery.of(context).size.width;
+      final fraction =
+          width > 48 ? ((width - 16) / width).clamp(0.5, 1.0) : 0.96;
+      _groupCardsController = PageController(
+        viewportFraction: fraction.toDouble(),
+      );
+    }
+  }
+
+  @override
   void dispose() {
     _groupsService.dispose();
     _paymentsService.dispose();
     _contentService.dispose();
-    _groupCardsController.dispose();
+    _groupCardsController?.dispose();
     super.dispose();
-  }
-
-  /// > tugmasi bosilganda keyingi guruh kartasiga silliq o'tadi
-  void _scrollToNextGroupCard(double cardWidth) {
-    if (!_groupCardsController.hasClients ||
-        !_groupCardsController.position.hasContentDimensions) {
-      return;
-    }
-    final step = cardWidth + 24;
-    final currentPage = (_groupCardsController.offset / step).round();
-    final target = ((currentPage + 1) * step).clamp(
-      0.0,
-      _groupCardsController.position.maxScrollExtent,
-    );
-    _groupCardsController.animateTo(
-      target,
-      duration: const Duration(milliseconds: 320),
-      curve: Curves.easeOutCubic,
-    );
   }
 
   Future<StudentGroupDetails> _groupDetailsFor(int groupId) {
@@ -443,7 +441,6 @@ class _HomeFeedState extends State<_HomeFeed> {
           builder: (context, snapshot) {
             final groups = snapshot.data ?? const <StudentGroupSummary>[];
             final featuredGroups = _featuredGroups(groups);
-            final cardWidth = constraints.maxWidth - 24;
             return SingleChildScrollView(
               padding: const EdgeInsets.fromLTRB(0, 10, 0, 24),
               child: ConstrainedBox(
@@ -515,239 +512,174 @@ class _HomeFeedState extends State<_HomeFeed> {
                           child: _HomeCardsLoading(),
                         )
                       else if (featuredGroups.isNotEmpty)
-                        Stack(
-                          children: [
-                            // Reyting + kunlik hisobot juftligi birga suriladi.
-                            // Keyingi karta ko'rinmaydi — o'ngdagi > belgisi
-                            // yana karta borligini bildiradi.
-                            SingleChildScrollView(
-                              controller: _groupCardsController,
-                              scrollDirection: Axis.horizontal,
+                        // Yangiliklar karuseli kabi haqiqiy PageView —
+                        // bitta surish aynan bitta keyingi/oldingi
+                        // kartaga to'liq o'tkazadi, ikkitasi orasida
+                        // qolib ketmaydi. Balandligi karta mazmuniga
+                        // qarab avtomatik moslashadi (hisobot yuklanguncha
+                        // bir necha kadr davomida o'zgarishi mumkin).
+                        _AutoHeightPageView(
+                          controller: _groupCardsController!,
+                          itemCount: featuredGroups.length,
+                          itemBuilder: (context, i) {
+                            return Padding(
                               padding: const EdgeInsets.symmetric(
-                                horizontal: 12,
+                                horizontal: 4,
                               ),
-                              child: Row(
-                                crossAxisAlignment: CrossAxisAlignment.start,
+                              child: Column(
                                 children: [
-                                  for (
-                                    var i = 0;
-                                    i < featuredGroups.length;
-                                    i++
-                                  ) ...[
-                                    if (i > 0) const SizedBox(width: 24),
-                                    SizedBox(
-                                      width: cardWidth,
-                                      child: Column(
-                                        children: [
-                                          HomeProgressCard(
-                                            points:
-                                                featuredGroups[i].monthlyPoints,
-                                            rank: featuredGroups[i].monthlyRank,
-                                            subjectName:
-                                                featuredGroups[i].subjectName,
-                                            groupName:
-                                                featuredGroups[i].groupName,
-                                            onTap: () {
-                                              Navigator.of(context).push(
-                                                MaterialPageRoute(
-                                                  builder: (_) =>
-                                                      StudentGroupDetailPage(
-                                                        session: widget.session,
-                                                        groupId:
-                                                            featuredGroups[i]
-                                                                .groupId,
-                                                        initialScheduleDays:
-                                                            featuredGroups[i]
-                                                                .scheduleDays,
-                                                        initialScheduleTime:
-                                                            featuredGroups[i]
-                                                                .scheduleTime,
-                                                      ),
-                                                ),
-                                              );
-                                            },
+                                  HomeProgressCard(
+                                    points: featuredGroups[i].monthlyPoints,
+                                    rank: featuredGroups[i].monthlyRank,
+                                    subjectName: featuredGroups[i].subjectName,
+                                    groupName: featuredGroups[i].groupName,
+                                    onTap: () {
+                                      Navigator.of(context).push(
+                                        MaterialPageRoute(
+                                          builder: (_) =>
+                                              StudentGroupDetailPage(
+                                            session: widget.session,
+                                            groupId: featuredGroups[i].groupId,
+                                            initialScheduleDays:
+                                                featuredGroups[i].scheduleDays,
+                                            initialScheduleTime:
+                                                featuredGroups[i].scheduleTime,
                                           ),
-                                          const SizedBox(height: 12),
-                                          FutureBuilder<StudentGroupDetails>(
-                                            future: _groupDetailsFor(
-                                              featuredGroups[i].groupId,
-                                            ),
-                                            builder: (context, detailSnapshot) {
-                                              final detail =
-                                                  detailSnapshot.data;
-                                              final report =
-                                                  detail
-                                                          ?.lessonReports
-                                                          .isNotEmpty ==
-                                                      true
-                                                  ? detail!.lessonReports.first
-                                                  : null;
-                                              final myRow = _rowForStudent(
-                                                report,
-                                                widget.session.user.id,
-                                              );
-                                              final metrics = report == null
-                                                  ? const <HomeReportMetric>[]
-                                                  : report.columns
-                                                        .where(
-                                                          (column) =>
-                                                              column.enabled,
-                                                        )
-                                                        .map(
-                                                          (column) =>
-                                                              HomeReportMetric(
-                                                                key: column
-                                                                    .key,
-                                                                label: column
-                                                                    .label,
-                                                                value:
-                                                                    myRow?.valueForColumn(
-                                                                      column
-                                                                          .key,
-                                                                    ) ??
-                                                                    0,
-                                                                maxValue: column
-                                                                    .maxValue,
-                                                              ),
-                                                        )
-                                                        .toList();
-                                              return HomeReportCard(
-                                                monthLabel:
-                                                    _lessonReportDateLabel(
-                                                  report,
-                                                  fallback: featuredGroups[i]
-                                                      .lastPointDate,
-                                                ),
-                                                metrics: metrics,
-                                                totalScore:
-                                                    myRow?.total ??
-                                                    report?.total,
-                                                percent:
-                                                    myRow?.percent ??
-                                                    report?.percent,
-                                                feedback:
-                                                    myRow?.feedback ??
-                                                    report?.feedback,
-                                                gradingEnabled:
-                                                    report?.gradingEnabled ??
-                                                    true,
-                                                onTap: () async {
-                                                  await Navigator.of(
-                                                    context,
-                                                  ).push(
-                                                    MaterialPageRoute(
-                                                      builder: (_) =>
-                                                          StudentPointReportsPage(
-                                                            session:
-                                                                widget.session,
-                                                            initialGroupId:
-                                                                featuredGroups[i]
-                                                                    .groupId,
-                                                            initialMonth:
-                                                                _monthKeyFromLessonDate(
-                                                                  report
-                                                                      ?.lessonDate,
-                                                                ),
-                                                          ),
-                                                    ),
-                                                  );
-                                                  // Batafsil sahifada
-                                                  // hisobot o'zgargan bo'lishi
-                                                  // mumkin — kartani yangilash
-                                                  // uchun keshni tozalaymiz.
-                                                  if (mounted) {
-                                                    setState(() {
-                                                      _groupDetailsCache
-                                                          .remove(
-                                                            featuredGroups[i]
-                                                                .groupId,
-                                                          );
-                                                    });
-                                                  }
-                                                },
-                                              );
-                                            },
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                  ],
-                                ],
-                              ),
-                            ),
-                            if (featuredGroups.length > 1)
-                              Positioned(
-                                right: 0,
-                                top: 0,
-                                bottom: 0,
-                                child: Center(
-                                  // Oxirgi kartaga yetganda tugma yashirinadi
-                                  child: AnimatedBuilder(
-                                    animation: _groupCardsController,
-                                    builder: (context, child) {
-                                      // Scroll hali o'lchamlarini olmagan
-                                      // bo'lsa maxScrollExtent'ga teginmaymiz
-                                      final position =
-                                          _groupCardsController.hasClients
-                                          ? _groupCardsController.position
-                                          : null;
-                                      final ready =
-                                          position != null &&
-                                          position.hasContentDimensions &&
-                                          position.hasPixels;
-                                      final atEnd =
-                                          ready &&
-                                          position.pixels >=
-                                              position.maxScrollExtent - 4;
-                                      return AnimatedOpacity(
-                                        duration: const Duration(
-                                          milliseconds: 180,
-                                        ),
-                                        opacity: atEnd ? 0 : 1,
-                                        child: IgnorePointer(
-                                          ignoring: atEnd,
-                                          child: child,
                                         ),
                                       );
                                     },
-                                    child: GestureDetector(
-                                      onTap: () =>
-                                          _scrollToNextGroupCard(cardWidth),
-                                      child: Container(
-                                        width: 32,
-                                        height: 32,
-                                        margin: const EdgeInsets.only(right: 4),
-                                        decoration: BoxDecoration(
-                                          color: Colors.white,
-                                          shape: BoxShape.circle,
-                                          border: Border.all(
-                                            color: const Color(0xFFE4E9F1),
-                                          ),
-                                          boxShadow: const [
-                                            BoxShadow(
-                                              color: Color(0x2E000000),
-                                              blurRadius: 10,
-                                              offset: Offset(0, 3),
-                                            ),
-                                          ],
-                                        ),
-                                        child: const Icon(
-                                          Icons.chevron_right_rounded,
-                                          size: 22,
-                                          color: Color(0xFF3A4454),
-                                        ),
-                                      ),
-                                    ),
                                   ),
-                                ),
+                                  const SizedBox(height: 12),
+                                  FutureBuilder<StudentGroupDetails>(
+                                    future: _groupDetailsFor(
+                                      featuredGroups[i].groupId,
+                                    ),
+                                    builder: (context, detailSnapshot) {
+                                      final detail = detailSnapshot.data;
+                                      final report =
+                                          detail?.lessonReports.isNotEmpty ==
+                                                  true
+                                              ? detail!.lessonReports.first
+                                              : null;
+                                      final myRow = _rowForStudent(
+                                        report,
+                                        widget.session.user.id,
+                                      );
+                                      final metrics = report == null
+                                          ? const <HomeReportMetric>[]
+                                          : report.columns
+                                              .where(
+                                                (column) => column.enabled,
+                                              )
+                                              .map(
+                                                (column) => HomeReportMetric(
+                                                  key: column.key,
+                                                  label: column.label,
+                                                  value: myRow?.valueForColumn(
+                                                        column.key,
+                                                      ) ??
+                                                      0,
+                                                  maxValue: column.maxValue,
+                                                ),
+                                              )
+                                              .toList();
+                                      return HomeReportCard(
+                                        monthLabel: _lessonReportDateLabel(
+                                          report,
+                                          fallback:
+                                              featuredGroups[i].lastPointDate,
+                                        ),
+                                        metrics: metrics,
+                                        totalScore:
+                                            myRow?.total ?? report?.total,
+                                        percent:
+                                            myRow?.percent ?? report?.percent,
+                                        feedback:
+                                            myRow?.feedback ?? report?.feedback,
+                                        gradingEnabled:
+                                            report?.gradingEnabled ?? true,
+                                        onTap: () async {
+                                          await Navigator.of(context).push(
+                                            MaterialPageRoute(
+                                              builder: (_) =>
+                                                  StudentPointReportsPage(
+                                                session: widget.session,
+                                                initialGroupId:
+                                                    featuredGroups[i].groupId,
+                                                initialMonth:
+                                                    _monthKeyFromLessonDate(
+                                                  report?.lessonDate,
+                                                ),
+                                              ),
+                                            ),
+                                          );
+                                          // Batafsil sahifada
+                                          // hisobot o'zgargan bo'lishi
+                                          // mumkin — kartani yangilash
+                                          // uchun keshni tozalaymiz.
+                                          if (mounted) {
+                                            setState(() {
+                                              _groupDetailsCache.remove(
+                                                featuredGroups[i].groupId,
+                                              );
+                                            });
+                                          }
+                                        },
+                                      );
+                                    },
+                                  ),
+                                ],
                               ),
-                          ],
+                            );
+                          },
                         )
                       else
                         const Padding(
                           padding: EdgeInsets.symmetric(horizontal: 12),
                           child: _HomeCardsEmpty(),
                         ),
+                      // Bir nechta guruh bo'lsa, qaysi kartada turganini
+                      // ko'rsatadigan nuqtalar — surish mumkinligini
+                      // yana ham yaqqol qiladi.
+                      if (featuredGroups.length > 1) ...[
+                        const SizedBox(height: 8),
+                        Center(
+                          child: AnimatedBuilder(
+                            animation: _groupCardsController!,
+                            builder: (context, child) {
+                              final currentPage =
+                                  _groupCardsController!.hasClients
+                                      ? (_groupCardsController!.page ?? 0)
+                                          .round()
+                                          .clamp(0, featuredGroups.length - 1)
+                                      : 0;
+                              return Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  for (var i = 0;
+                                      i < featuredGroups.length;
+                                      i++) ...[
+                                    if (i > 0) const SizedBox(width: 5),
+                                    AnimatedContainer(
+                                      duration: const Duration(
+                                        milliseconds: 200,
+                                      ),
+                                      width: i == currentPage ? 16 : 6,
+                                      height: 6,
+                                      decoration: BoxDecoration(
+                                        color: i == currentPage
+                                            ? const Color(0xFFA70E07)
+                                            : const Color(0xFFC9D0DC),
+                                        borderRadius: BorderRadius.circular(8),
+                                      ),
+                                    ),
+                                  ],
+                                ],
+                              );
+                            },
+                          ),
+                        ),
+                      ],
                       const SizedBox(height: 12),
                       // Keyingi dars va to'lov holati — kichik juft kartalar
                       Padding(
@@ -771,31 +703,26 @@ class _HomeFeedState extends State<_HomeFeed> {
                         ),
                       ),
                       const SizedBox(height: 12),
-                      // Oylik report charti — faqat English guruhlar bo'yicha
+                      // Oylik ballar charti — fan bo'yicha
                       Padding(
                         padding: const EdgeInsets.symmetric(horizontal: 12),
                         child: HomeMonthlyProgressChart(
-                          groups: _englishFeaturedGroups(featuredGroups),
+                          groups: _chartFeaturedGroups(featuredGroups),
                           loadReports: (groupId) =>
                               _groupsService.fetchMyPointReports(
-                                widget.session,
-                                month: _month,
-                                groupId: groupId,
-                              ),
-                          onTap: () {
-                            final reportGroups = _englishFeaturedGroups(
-                              featuredGroups,
-                            );
-                            if (reportGroups.isEmpty) return;
+                            widget.session,
+                            month: _month,
+                            groupId: groupId,
+                          ),
+                          onTapGroup: (group) {
+                            if (group == null) return;
                             Navigator.of(context).push(
                               MaterialPageRoute(
                                 builder: (_) => StudentGroupDetailPage(
                                   session: widget.session,
-                                  groupId: reportGroups.first.groupId,
-                                  initialScheduleDays:
-                                      reportGroups.first.scheduleDays,
-                                  initialScheduleTime:
-                                      reportGroups.first.scheduleTime,
+                                  groupId: group.groupId,
+                                  initialScheduleDays: group.scheduleDays,
+                                  initialScheduleTime: group.scheduleTime,
                                 ),
                               ),
                             );
@@ -822,13 +749,52 @@ class _HomeFeedState extends State<_HomeFeed> {
     return [groups.first];
   }
 
-  List<StudentGroupSummary> _englishFeaturedGroups(
+  List<StudentGroupSummary> _chartFeaturedGroups(
     List<StudentGroupSummary> groups,
   ) {
-    final english = groups
-        .where((group) => group.subjectName.trim().toLowerCase() == 'english')
-        .toList();
-    return english.isNotEmpty ? english : groups;
+    if (groups.isEmpty) return const [];
+
+    // Bir nechta guruh bir xil fan uchun bo'lsa, chartda fan bo'yicha bitta
+    // chip ko'rsatamiz. Faol guruh bo'lsa, o'sha tanlanadi.
+    final bySubject = <String, StudentGroupSummary>{};
+    for (final group in groups) {
+      final key = group.subjectName.trim().isNotEmpty
+          ? group.subjectName.trim().toLowerCase()
+          : 'group-${group.groupId}';
+      final existing = bySubject[key];
+      if (existing == null) {
+        bySubject[key] = group;
+        continue;
+      }
+      if (_preferChartGroup(existing, group)) {
+        bySubject[key] = group;
+      }
+    }
+
+    return bySubject.values.toList();
+  }
+
+  bool _preferChartGroup(
+      StudentGroupSummary current, StudentGroupSummary next) {
+    if (current.isActive != next.isActive) {
+      return next.isActive;
+    }
+
+    final currentJoin = DateTime.tryParse(current.myJoinDate);
+    final nextJoin = DateTime.tryParse(next.myJoinDate);
+    if (currentJoin != null && nextJoin != null && currentJoin != nextJoin) {
+      return nextJoin.isAfter(currentJoin);
+    }
+
+    final currentCreated = DateTime.tryParse(current.createdDate);
+    final nextCreated = DateTime.tryParse(next.createdDate);
+    if (currentCreated != null &&
+        nextCreated != null &&
+        currentCreated != nextCreated) {
+      return nextCreated.isAfter(currentCreated);
+    }
+
+    return false;
   }
 }
 
@@ -929,7 +895,7 @@ class _NextLessonCard extends StatelessWidget {
               child: Icon(
                 Icons.calendar_month_rounded,
                 size: 76,
-                color: const Color(0xFF4F46E5).withValues(alpha: 0.06),
+                color: const Color(0xFFA70E07).withValues(alpha: 0.06),
               ),
             ),
           ),
@@ -945,7 +911,7 @@ class _NextLessonCard extends StatelessWidget {
                       height: 30,
                       decoration: BoxDecoration(
                         gradient: const LinearGradient(
-                          colors: [Color(0xFF4F46E5), Color(0xFF818CF8)],
+                          colors: [Color(0xFFA70E07), Color(0xFFDC2626)],
                           begin: Alignment.topLeft,
                           end: Alignment.bottomRight,
                         ),
@@ -998,7 +964,7 @@ class _NextLessonCard extends StatelessWidget {
                         const Icon(
                           Icons.event_available_rounded,
                           size: 12,
-                          color: Color(0xFF4F46E5),
+                          color: Color(0xFFA70E07),
                         ),
                         const SizedBox(width: 4),
                         Expanded(
@@ -1022,7 +988,7 @@ class _NextLessonCard extends StatelessWidget {
                         ),
                         decoration: BoxDecoration(
                           color: const Color(
-                            0xFF4F46E5,
+                            0xFFA70E07,
                           ).withValues(alpha: 0.08),
                           borderRadius: BorderRadius.circular(16),
                         ),
@@ -1032,7 +998,7 @@ class _NextLessonCard extends StatelessWidget {
                             const Icon(
                               Icons.schedule_rounded,
                               size: 11,
-                              color: Color(0xFF4F46E5),
+                              color: Color(0xFFA70E07),
                             ),
                             const SizedBox(width: 4),
                             Flexible(
@@ -1041,7 +1007,7 @@ class _NextLessonCard extends StatelessWidget {
                                 style: const TextStyle(
                                   fontSize: 10.5,
                                   fontWeight: FontWeight.w800,
-                                  color: Color(0xFF4F46E5),
+                                  color: Color(0xFFA70E07),
                                 ),
                               ),
                             ),
@@ -1111,7 +1077,7 @@ class _PaymentStatusCard extends StatelessWidget {
                 child: Icon(
                   Icons.account_balance_wallet_rounded,
                   size: 76,
-                  color: const Color(0xFF0F766E).withValues(alpha: 0.06),
+                  color: const Color(0xFFA70E07).withValues(alpha: 0.06),
                 ),
               ),
             ),
@@ -1127,7 +1093,7 @@ class _PaymentStatusCard extends StatelessWidget {
                         height: 30,
                         decoration: BoxDecoration(
                           gradient: const LinearGradient(
-                            colors: [Color(0xFF0F766E), Color(0xFF2DD4BF)],
+                            colors: [Color(0xFFA70E07), Color(0xFFDC2626)],
                             begin: Alignment.topLeft,
                             end: Alignment.bottomRight,
                           ),
@@ -1179,8 +1145,8 @@ class _PaymentStatusCard extends StatelessWidget {
                           ),
                         );
                       }
-                      final summary = snapshot.data?.summary;
-                      if (snapshot.error != null || summary == null) {
+                      final enrollments = snapshot.data?.enrollments;
+                      if (snapshot.error != null || enrollments == null) {
                         return const Text(
                           'Ma\'lumot yuklanmadi',
                           style: TextStyle(
@@ -1191,67 +1157,32 @@ class _PaymentStatusCard extends StatelessWidget {
                         );
                       }
 
-                      final debt = summary.totalDebt;
-                      final paid = summary.totalPaid;
-                      final String statusText;
-                      final Color statusColor;
-                      if (summary.totalRequired <= 0) {
-                        statusText = 'To\'lov belgilanmagan';
-                        statusColor = const Color(0xFF8A93A5);
-                      } else if (debt <= 0) {
-                        statusText = 'To\'langan';
-                        statusColor = const Color(0xFF14903B);
-                      } else if (paid > 0) {
-                        statusText = 'Qisman to\'langan';
-                        statusColor = const Color(0xFFB45309);
-                      } else {
-                        statusText = 'To\'lanmagan';
-                        statusColor = const Color(0xFFA70E07);
+                      final bySubject = _groupBySubject(enrollments);
+                      if (bySubject.isEmpty) {
+                        return const Text(
+                          'To\'lov belgilanmagan',
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600,
+                            color: Color(0xFF8A93A5),
+                          ),
+                        );
                       }
 
                       return Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(
-                            debt > 0
-                                ? _money(debt)
-                                : _money(summary.totalRequired),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w900,
-                              color: Color(0xFF182033),
-                            ),
-                          ),
-                          const SizedBox(height: 1),
-                          Text(
-                            debt > 0 ? 'to\'lanishi kerak' : 'oylik to\'lov',
-                            style: const TextStyle(
-                              fontSize: 10,
-                              fontWeight: FontWeight.w600,
-                              color: Color(0xFF8A93A5),
-                            ),
-                          ),
-                          const SizedBox(height: 7),
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 8,
-                              vertical: 3,
-                            ),
-                            decoration: BoxDecoration(
-                              color: statusColor.withValues(alpha: 0.10),
-                              borderRadius: BorderRadius.circular(16),
-                            ),
-                            child: Text(
-                              statusText,
-                              style: TextStyle(
-                                fontSize: 10.5,
-                                fontWeight: FontWeight.w800,
-                                color: statusColor,
+                          for (var i = 0; i < bySubject.length; i++) ...[
+                            _SubjectPaymentRow(summary: bySubject[i]),
+                            if (i < bySubject.length - 1) ...[
+                              const SizedBox(height: 8),
+                              const Divider(
+                                height: 1,
+                                color: Color(0xFFEDF1F7),
                               ),
-                            ),
-                          ),
+                              const SizedBox(height: 8),
+                            ],
+                          ],
                         ],
                       );
                     },
@@ -1262,6 +1193,250 @@ class _PaymentStatusCard extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+/// Bitta fan bo'yicha jamlangan to'lov holati (bir fanda bir nechta
+/// guruh bo'lsa, summalar qo'shib hisoblanadi).
+class _SubjectPaymentSummary {
+  const _SubjectPaymentSummary({
+    required this.subjectName,
+    required this.totalRequired,
+    required this.totalPaid,
+    required this.totalDebt,
+  });
+
+  final String subjectName;
+  final double totalRequired;
+  final double totalPaid;
+  final double totalDebt;
+}
+
+/// Talabaning to'lov yozuvlarini (enrollments) fan nomi bo'yicha
+/// guruhlab, har bir fan uchun jami kerak/to'langan/qarz summasini
+/// hisoblaydi — "To'lov holati" kartasida umumiy summa emas, fanlar
+/// kesimida ko'rsatilishi uchun.
+List<_SubjectPaymentSummary> _groupBySubject(
+  List<StudentPaymentEnrollment> enrollments,
+) {
+  final order = <String>[];
+  final totals = <String, _SubjectPaymentSummary>{};
+  for (final enrollment in enrollments) {
+    final key = enrollment.subjectName.trim().isNotEmpty
+        ? enrollment.subjectName.trim()
+        : enrollment.groupName.trim();
+    if (key.isEmpty) continue;
+    final existing = totals[key];
+    if (existing == null) {
+      order.add(key);
+      totals[key] = _SubjectPaymentSummary(
+        subjectName: key,
+        totalRequired: enrollment.requiredAmount,
+        totalPaid: enrollment.paidAmount,
+        totalDebt: enrollment.debtAmount,
+      );
+    } else {
+      totals[key] = _SubjectPaymentSummary(
+        subjectName: key,
+        totalRequired: existing.totalRequired + enrollment.requiredAmount,
+        totalPaid: existing.totalPaid + enrollment.paidAmount,
+        totalDebt: existing.totalDebt + enrollment.debtAmount,
+      );
+    }
+  }
+  return [for (final key in order) totals[key]!];
+}
+
+/// "To'lov holati" kartasidagi bitta fan qatori — fan nomi, qarz/oylik
+/// summa va holat belgisi.
+class _SubjectPaymentRow extends StatelessWidget {
+  const _SubjectPaymentRow({required this.summary});
+
+  final _SubjectPaymentSummary summary;
+
+  @override
+  Widget build(BuildContext context) {
+    final debt = summary.totalDebt;
+    final paid = summary.totalPaid;
+    final String statusText;
+    final Color statusColor;
+    if (summary.totalRequired <= 0) {
+      statusText = 'Belgilanmagan';
+      statusColor = const Color(0xFF8A93A5);
+    } else if (debt <= 0) {
+      statusText = 'To\'langan';
+      statusColor = const Color(0xFF14903B);
+    } else if (paid > 0) {
+      statusText = 'Qisman';
+      statusColor = const Color(0xFFB45309);
+    } else {
+      statusText = 'To\'lanmagan';
+      statusColor = const Color(0xFFA70E07);
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          summary.subjectName,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: const TextStyle(
+            fontSize: 12.5,
+            fontWeight: FontWeight.w800,
+            color: Color(0xFF182033),
+          ),
+        ),
+        const SizedBox(height: 4),
+        Row(
+          children: [
+            Expanded(
+              child: Text(
+                debt > 0
+                    ? _PaymentStatusCard._money(debt)
+                    : _PaymentStatusCard._money(summary.totalRequired),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  fontSize: 12.5,
+                  fontWeight: FontWeight.w900,
+                  color: Color(0xFF182033),
+                ),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 4),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+          decoration: BoxDecoration(
+            color: statusColor.withValues(alpha: 0.10),
+            borderRadius: BorderRadius.circular(16),
+          ),
+          child: Text(
+            statusText,
+            style: TextStyle(
+              fontSize: 10,
+              fontWeight: FontWeight.w800,
+              color: statusColor,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// Yangiliklar karuseli kabi haqiqiy `PageView`, lekin har bir sahifa
+/// (karta) balandligi mazmuniga qarab o'zgarishi mumkin bo'lgan hollar
+/// uchun — masalan hisobot kartasi async yuklanguncha balandligi
+/// noma'lum. Har bir sahifaning tabiiy balandligi o'lchab olinadi va
+/// tashqi konteyner o'sha balandlikka silliq moslashadi.
+class _AutoHeightPageView extends StatefulWidget {
+  const _AutoHeightPageView({
+    required this.controller,
+    required this.itemCount,
+    required this.itemBuilder,
+  });
+
+  final PageController controller;
+  final int itemCount;
+  final IndexedWidgetBuilder itemBuilder;
+
+  @override
+  State<_AutoHeightPageView> createState() => _AutoHeightPageViewState();
+}
+
+class _AutoHeightPageViewState extends State<_AutoHeightPageView> {
+  final Map<int, double> _heights = {};
+  int _currentPage = 0;
+
+  void _reportHeight(int index, double height) {
+    if (!mounted) return;
+    if ((_heights[index] ?? -1) == height) return;
+    setState(() => _heights[index] = height);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final height = _heights[_currentPage] ?? 420.0;
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 200),
+      curve: Curves.easeOutCubic,
+      height: height,
+      // Standart holatda faqat barmoq (touch) bilan surish yoqilgan —
+      // sichqoncha/trackpad bilan ham ishlashi uchun kengaytiramiz.
+      child: ScrollConfiguration(
+        behavior: ScrollConfiguration.of(context).copyWith(
+          dragDevices: {
+            PointerDeviceKind.touch,
+            PointerDeviceKind.mouse,
+            PointerDeviceKind.trackpad,
+            PointerDeviceKind.stylus,
+          },
+        ),
+        child: PageView.builder(
+          controller: widget.controller,
+          itemCount: widget.itemCount,
+          onPageChanged: (index) => setState(() => _currentPage = index),
+          itemBuilder: (context, index) {
+            return _MeasureSize(
+              onChange: (size) => _reportHeight(index, size),
+              child: widget.itemBuilder(context, index),
+            );
+          },
+        ),
+      ),
+    );
+  }
+}
+
+/// Farzand widgetning TABIIY (parent tomonidan cheklanmagan) balandligini
+/// o'lchab, `onChange` orqali xabar beradi — o'zi esa parentning bergan
+/// joyiga (masalan PageView sahifasiga) moslashib qoladi.
+class _MeasureSize extends StatefulWidget {
+  const _MeasureSize({required this.onChange, required this.child});
+
+  final ValueChanged<double> onChange;
+  final Widget child;
+
+  @override
+  State<_MeasureSize> createState() => _MeasureSizeState();
+}
+
+class _MeasureSizeState extends State<_MeasureSize> {
+  final GlobalKey _key = GlobalKey();
+
+  void _scheduleMeasure() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final box = _key.currentContext?.findRenderObject() as RenderBox?;
+      if (box != null && box.hasSize) {
+        widget.onChange(box.size.height);
+      }
+    });
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _scheduleMeasure();
+  }
+
+  @override
+  void didUpdateWidget(covariant _MeasureSize oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    _scheduleMeasure();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return OverflowBox(
+      minHeight: 0,
+      maxHeight: double.infinity,
+      alignment: Alignment.topCenter,
+      child: SizedBox(key: _key, child: widget.child),
     );
   }
 }

@@ -51,13 +51,13 @@ class _StudentPointsOverviewPageState extends State<StudentPointsOverviewPage> {
         .fetchMyPointReports(widget.session, month: 'all')
         .then(_normalizeAllTimeHistory)
         .catchError((_) async {
-          try {
-            final groups = await _service.fetchMyGroups(widget.session);
-            return _buildFallbackData(groups);
-          } catch (_) {
-            return _buildFallbackData(const <StudentGroupSummary>[]);
-          }
-        });
+      try {
+        final groups = await _service.fetchMyGroups(widget.session);
+        return _buildFallbackData(groups);
+      } catch (_) {
+        return _buildFallbackData(const <StudentGroupSummary>[]);
+      }
+    });
   }
 
   StudentPointReportsData _normalizeAllTimeHistory(
@@ -74,26 +74,33 @@ class _StudentPointsOverviewPageState extends State<StudentPointsOverviewPage> {
       final groupKey = '${event.groupId ?? 0}:${event.groupName.trim()}';
       final dayKey = event.dayKey.trim();
 
-      breakdownMap.putIfAbsent(
-        groupKey,
-        () => _AggregateBucket(
-          groupId: event.groupId,
-          groupName: event.groupName.trim().isEmpty ? 'Guruh' : event.groupName,
-        ),
-      ).add(event.points);
+      breakdownMap
+          .putIfAbsent(
+            groupKey,
+            () => _AggregateBucket(
+              groupId: event.groupId,
+              groupName:
+                  event.groupName.trim().isEmpty ? 'Guruh' : event.groupName,
+            ),
+          )
+          .add(event.points);
 
-      monthlyMap.putIfAbsent(
-        monthKey,
-        () => _AggregateBucket(
-          groupId: null,
-          groupName: monthKey,
-        ),
-      ).add(event.points);
+      monthlyMap
+          .putIfAbsent(
+            monthKey,
+            () => _AggregateBucket(
+              groupId: null,
+              groupName: monthKey,
+            ),
+          )
+          .add(event.points);
 
-      dailyMap.putIfAbsent(
-        dayKey,
-        () => _DailyAggregateBucket(dayKey),
-      ).add(event.points, event.createdTime);
+      dailyMap
+          .putIfAbsent(
+            dayKey,
+            () => _DailyAggregateBucket(dayKey),
+          )
+          .add(event.points, event.createdTime);
     }
 
     final breakdown = breakdownMap.values
@@ -144,15 +151,13 @@ class _StudentPointsOverviewPageState extends State<StudentPointsOverviewPage> {
   }
 
   StudentPointReportsData _buildFallbackData(List<StudentGroupSummary> groups) {
-    final englishGroups = groups
-        .where((group) => group.subjectName.trim().toLowerCase() == 'english')
-        .toList();
-    final totalPoints = englishGroups.fold<int>(
+    final visibleGroups = groups.toList();
+    final totalPoints = visibleGroups.fold<int>(
       0,
       (sum, group) => sum + group.monthlyPoints,
     );
     final monthKey = _currentMonthKey();
-    final totalEvents = englishGroups.fold<int>(
+    final totalEvents = visibleGroups.fold<int>(
       0,
       (sum, group) => sum + (group.monthlyPoints > 0 ? 1 : 0),
     );
@@ -165,7 +170,7 @@ class _StudentPointsOverviewPageState extends State<StudentPointsOverviewPage> {
         attendanceEvents: 0,
         manualEvents: totalEvents,
       ),
-      breakdown: englishGroups
+      breakdown: visibleGroups
           .map(
             (group) => StudentPointBreakdown(
               groupId: group.groupId,
@@ -182,7 +187,7 @@ class _StudentPointsOverviewPageState extends State<StudentPointsOverviewPage> {
           totalEvents: totalEvents,
         ),
       ],
-      teacherBreakdown: englishGroups
+      teacherBreakdown: visibleGroups
           .map(
             (group) => StudentPointTeacherBreakdown(
               monthName: monthKey,

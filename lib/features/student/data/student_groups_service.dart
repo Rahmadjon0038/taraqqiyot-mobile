@@ -24,10 +24,19 @@ class StudentGroupsService {
 
   Uri _uri(String path) => Uri.parse('${ApiConfig.baseUrl}$path');
 
-  Future<List<StudentGroupSummary>> fetchMyGroups(AuthSession session) async {
+  Future<List<StudentGroupSummary>> fetchMyGroups(
+    AuthSession session, {
+    String? month,
+  }) async {
+    final params = <String, String>{};
+    if (month != null && month.trim().isNotEmpty) {
+      params['month'] = month.trim();
+    }
     final response = await _client
         .get(
-          _uri('/api/students/my-groups'),
+          _uri('/api/students/my-groups').replace(
+            queryParameters: params.isEmpty ? null : params,
+          ),
           headers: {'Authorization': 'Bearer ${session.accessToken}'},
         )
         .timeout(_timeout);

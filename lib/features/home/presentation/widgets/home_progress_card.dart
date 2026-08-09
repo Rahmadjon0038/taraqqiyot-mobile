@@ -24,13 +24,13 @@ class HomeProgressCard extends StatelessWidget {
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(24),
         gradient: const LinearGradient(
-          colors: [Color(0xFF134E4A), Color(0xFF0F766E), Color(0xFF2DD4BF)],
+          colors: [Color(0xFF7F1D1D), Color(0xFFA70E07), Color(0xFFDC2626)],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
         boxShadow: const [
           BoxShadow(
-            color: Color(0x26000000),
+            color: Color(0x33A70E07),
             blurRadius: 26,
             offset: Offset(0, 12),
           ),
@@ -113,21 +113,39 @@ class HomeProgressCard extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: 4),
-                Text(
-                  subjectName,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                    height: 1.1,
-                  ),
+                Row(
+                  children: [
+                    Icon(
+                      Icons.menu_book_rounded,
+                      size: 14,
+                      color: Colors.white.withValues(alpha: 0.85),
+                    ),
+                    const SizedBox(width: 5),
+                    Text(
+                      subjectName,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        height: 1.1,
+                      ),
+                    ),
+                  ],
                 ),
                 const SizedBox(height: 14),
                 Row(
                   children: [
-                    _StatPill(label: 'Ball', value: '$points'),
+                    _StatPill(
+                      icon: Icons.star_rounded,
+                      label: 'Ball',
+                      value: '$points',
+                    ),
                     const SizedBox(width: 8),
-                    _StatPill(label: 'O‘rin', value: rank > 0 ? '$rank' : '-'),
+                    _StatPill(
+                      icon: Icons.military_tech_rounded,
+                      label: 'O‘rin',
+                      value: rank > 0 ? '$rank' : '-',
+                    ),
                   ],
                 ),
               ],
@@ -153,8 +171,13 @@ class HomeProgressCard extends StatelessWidget {
 }
 
 class _StatPill extends StatelessWidget {
-  const _StatPill({required this.label, required this.value});
+  const _StatPill({
+    required this.icon,
+    required this.label,
+    required this.value,
+  });
 
+  final IconData icon;
   final String label;
   final String value;
 
@@ -167,25 +190,40 @@ class _StatPill extends StatelessWidget {
         borderRadius: BorderRadius.circular(18),
         border: Border.all(color: Colors.white.withValues(alpha: 0.12)),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
         children: [
-          Text(
-            label,
-            style: TextStyle(
-              color: Colors.white.withValues(alpha: 0.76),
-              fontSize: 10,
-              fontWeight: FontWeight.w600,
+          Container(
+            width: 24,
+            height: 24,
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.18),
+              shape: BoxShape.circle,
             ),
+            child: Icon(icon, color: Colors.white, size: 13),
           ),
-          const SizedBox(height: 2),
-          Text(
-            value,
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 15,
-              fontWeight: FontWeight.w800,
-            ),
+          const SizedBox(width: 8),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                label,
+                style: TextStyle(
+                  color: Colors.white.withValues(alpha: 0.76),
+                  fontSize: 10,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                value,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 15,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+            ],
           ),
         ],
       ),
