@@ -2082,10 +2082,17 @@ class _LessonStatisticsEditorSheetState
                                     controller: column.maxValueController,
                                     enabled: !column.locked,
                                     keyboardType: TextInputType.number,
+                                    textInputAction: TextInputAction.done,
                                     inputFormatters: [
                                       FilteringTextInputFormatter.digitsOnly,
                                     ],
                                     onChanged: (_) => setModalState(() {}),
+                                    onTapOutside: (_) =>
+                                        FocusManager.instance.primaryFocus
+                                            ?.unfocus(),
+                                    onEditingComplete: () =>
+                                        FocusManager.instance.primaryFocus
+                                            ?.unfocus(),
                                     decoration: InputDecoration(
                                       isDense: true,
                                       labelText: 'Maksimal ball',
@@ -2352,9 +2359,12 @@ class _LessonStatisticsEditorSheetState
       controller: controller,
       enabled: enabled,
       keyboardType: TextInputType.number,
+      textInputAction: TextInputAction.done,
       textAlign: TextAlign.center,
       inputFormatters: [FilteringTextInputFormatter.digitsOnly],
       onChanged: (_) => setState(() {}),
+      onTapOutside: (_) => FocusManager.instance.primaryFocus?.unfocus(),
+      onEditingComplete: () => FocusManager.instance.primaryFocus?.unfocus(),
       decoration: InputDecoration(
         isDense: true,
         filled: true,

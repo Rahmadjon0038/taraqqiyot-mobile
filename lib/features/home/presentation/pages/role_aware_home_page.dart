@@ -10,6 +10,7 @@ import '../../../notifications/presentation/notification_page.dart';
 import '../../../super_admin/presentation/super_admin_admins_page.dart';
 import '../../../super_admin/presentation/super_admin_attendance_page.dart';
 import '../../../super_admin/presentation/super_admin_dashboard_page.dart';
+import '../../../super_admin/presentation/super_admin_teachers_page.dart';
 import '../../../teacher/presentation/teacher_attendance_page.dart';
 import '../../../teacher/presentation/teacher_dashboard_page.dart';
 import '../../../teacher/presentation/teacher_groups_page.dart';
@@ -293,6 +294,14 @@ class _SuperAdminHomePageState extends State<_SuperAdminHomePage> {
       icon: Icons.bar_chart_rounded,
       builder: (_) => SuperAdminAttendancePage(
         key: const ValueKey('super-admin-attendance'),
+        session: widget.session,
+      ),
+    ),
+    _RoleTab(
+      title: "O'qituvchilar",
+      icon: Icons.school_rounded,
+      builder: (_) => SuperAdminTeachersPage(
+        key: const ValueKey('super-admin-teachers'),
         session: widget.session,
       ),
     ),

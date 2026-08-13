@@ -8,6 +8,7 @@ import '../../home/data/home_content_service.dart';
 import '../../home/presentation/widgets/home_news_carousel.dart';
 import '../../home/presentation/widgets/home_stories.dart';
 import '../data/super_admin_service.dart';
+import 'super_admin_unassigned_students_page.dart';
 
 /// Super admin bosh sahifasi: storislar (+ yuklash), yangiliklar,
 /// oylik KPI kartalari, moliyaviy taqsimot charti va fanlar tahlili.
@@ -26,6 +27,8 @@ class _SuperAdminDashboardPageState extends State<SuperAdminDashboardPage> {
   final HomeContentService _contentService = HomeContentService();
 
   late Future<SuperAdminDashboard> _dashboardFuture;
+  late Future<SnapshotSummary> _snapshotSummaryFuture;
+  late Future<List<TeacherMonthPayments>> _teacherPaymentsFuture;
   late Future<HomeContent> _contentFuture;
   late String _month;
   late List<String> _months;
@@ -39,6 +42,14 @@ class _SuperAdminDashboardPageState extends State<SuperAdminDashboardPage> {
     _month = '${now.year}-${now.month.toString().padLeft(2, '0')}';
     _months = [_month];
     _dashboardFuture = _service.fetchDashboard(widget.session, month: _month);
+    _snapshotSummaryFuture = _service.fetchSnapshotSummary(
+      widget.session,
+      month: _month,
+    );
+    _teacherPaymentsFuture = _service.fetchTeacherMonthlyPayments(
+      widget.session,
+      month: _month,
+    );
     _contentFuture = _contentService.fetchAll(widget.session);
     _loadMonths();
   }
@@ -62,6 +73,14 @@ class _SuperAdminDashboardPageState extends State<SuperAdminDashboardPage> {
   Future<void> _reload() async {
     setState(() {
       _dashboardFuture = _service.fetchDashboard(widget.session, month: _month);
+      _snapshotSummaryFuture = _service.fetchSnapshotSummary(
+        widget.session,
+        month: _month,
+      );
+      _teacherPaymentsFuture = _service.fetchTeacherMonthlyPayments(
+        widget.session,
+        month: _month,
+      );
       _contentFuture = _contentService.fetchAll(widget.session);
     });
     await _dashboardFuture;
@@ -72,6 +91,14 @@ class _SuperAdminDashboardPageState extends State<SuperAdminDashboardPage> {
     setState(() {
       _month = month;
       _dashboardFuture = _service.fetchDashboard(widget.session, month: month);
+      _snapshotSummaryFuture = _service.fetchSnapshotSummary(
+        widget.session,
+        month: month,
+      );
+      _teacherPaymentsFuture = _service.fetchTeacherMonthlyPayments(
+        widget.session,
+        month: month,
+      );
     });
   }
 
@@ -287,9 +314,34 @@ class _SuperAdminDashboardPageState extends State<SuperAdminDashboardPage> {
                       ),
                     ],
                     const SizedBox(height: 12),
-                    _StudentsBreakdownCard(students: data.students),
+                    _StudentsBreakdownCard(
+                      session: widget.session,
+                      students: data.students,
+                    ),
                     const SizedBox(height: 12),
-                    _SubjectsCard(data: data),
+                    FutureBuilder<SnapshotSummary>(
+                      future: _snapshotSummaryFuture,
+                      builder: (context, snapshotSummarySnapshot) {
+                        final summary = snapshotSummarySnapshot.data;
+                        if (summary == null ||
+                            summary.paymentRecordsTotal == 0) {
+                          return const SizedBox.shrink();
+                        }
+                        return Column(
+                          children: [
+                            _PaymentStatusChartCard(
+                              month: _month,
+                              summary: summary,
+                            ),
+                            const SizedBox(height: 12),
+                          ],
+                        );
+                      },
+                    ),
+                    _SubjectsCard(
+                      data: data,
+                      teacherPaymentsFuture: _teacherPaymentsFuture,
+                    ),
                   ],
                 );
               },
@@ -694,6 +746,206 @@ class _FinanceChartCard extends StatelessWidget {
   }
 }
 
+/// To'lov holati donut charti: to'lagan / qisman / to'lamagan o'quvchilar
+/// (saytdagi "O'qituvchilar to'lovlari" sahifasidagi chart bilan bir xil).
+class _PaymentStatusChartCard extends StatelessWidget {
+  const _PaymentStatusChartCard({required this.month, required this.summary});
+
+  final String month;
+  final SnapshotSummary summary;
+
+  static const _paidColor = Color(0xFF10B981);
+  static const _partialColor = Color(0xFFF59E0B);
+  static const _unpaidColor = Color(0xFFEF4444);
+
+  @override
+  Widget build(BuildContext context) {
+    final percent = summary.paidPercent;
+
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: const Color(0xFFE4E9F1)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 30,
+                height: 30,
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(
+                    colors: [Color(0xFFD32F2F), Color(0xFF7C0A05)],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: const Icon(
+                  Icons.donut_large_rounded,
+                  size: 16,
+                  color: Colors.white,
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'To\'lov holati (${_formatMonthLabel(month)})',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w900,
+                    color: Color(0xFF182033),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          Row(
+            children: [
+              SizedBox(
+                width: 110,
+                height: 110,
+                child: Stack(
+                  alignment: Alignment.center,
+                  children: [
+                    PieChart(
+                      PieChartData(
+                        sectionsSpace: 2,
+                        centerSpaceRadius: 34,
+                        startDegreeOffset: -90,
+                        sections: [
+                          if (summary.paidStudents > 0)
+                            PieChartSectionData(
+                              value: summary.paidStudents.toDouble(),
+                              color: _paidColor,
+                              radius: 16,
+                              showTitle: false,
+                            ),
+                          if (summary.partialStudents > 0)
+                            PieChartSectionData(
+                              value: summary.partialStudents.toDouble(),
+                              color: _partialColor,
+                              radius: 16,
+                              showTitle: false,
+                            ),
+                          if (summary.unpaidStudents > 0)
+                            PieChartSectionData(
+                              value: summary.unpaidStudents.toDouble(),
+                              color: _unpaidColor,
+                              radius: 16,
+                              showTitle: false,
+                            ),
+                        ],
+                      ),
+                    ),
+                    Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          '$percent%',
+                          style: const TextStyle(
+                            fontSize: 17,
+                            fontWeight: FontWeight.w900,
+                            color: Color(0xFF182033),
+                          ),
+                        ),
+                        const Text(
+                          'to\'lov qilgan',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            fontSize: 8.5,
+                            fontWeight: FontWeight.w700,
+                            color: Color(0xFF8A93A5),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  children: [
+                    _PaymentStatusLegendRow(
+                      color: _paidColor,
+                      label: 'To\'lagan',
+                      value: summary.paidStudents,
+                    ),
+                    const SizedBox(height: 10),
+                    _PaymentStatusLegendRow(
+                      color: _partialColor,
+                      label: 'Qisman',
+                      value: summary.partialStudents,
+                    ),
+                    const SizedBox(height: 10),
+                    _PaymentStatusLegendRow(
+                      color: _unpaidColor,
+                      label: 'To\'lamagan',
+                      value: summary.unpaidStudents,
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _PaymentStatusLegendRow extends StatelessWidget {
+  const _PaymentStatusLegendRow({
+    required this.color,
+    required this.label,
+    required this.value,
+  });
+
+  final Color color;
+  final String label;
+  final int value;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Container(
+          width: 10,
+          height: 10,
+          decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+        ),
+        const SizedBox(width: 7),
+        Expanded(
+          child: Text(
+            label,
+            style: const TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w700,
+              color: Color(0xFF5A6478),
+            ),
+          ),
+        ),
+        Text(
+          '$value o\'quvchi',
+          style: const TextStyle(
+            fontSize: 11,
+            fontWeight: FontWeight.w900,
+            color: Color(0xFF182033),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
 /// Rasxodlar taqsimoti donut charti: kategoriyalar kesimida.
 /// Eng katta 5 kategoriya alohida, qolganlari "Boshqa"ga yig'iladi.
 class _ExpenseCategoriesChartCard extends StatelessWidget {
@@ -858,9 +1110,18 @@ class _ExpenseCategoriesChartCard extends StatelessWidget {
 /// Talabalar statistikasi: jami, faol, guruhsiz, to'xtatgan, bitirgan
 /// va shu oy to'lov jadvalida borlar
 class _StudentsBreakdownCard extends StatelessWidget {
-  const _StudentsBreakdownCard({required this.students});
+  const _StudentsBreakdownCard({required this.session, required this.students});
 
+  final AuthSession session;
   final StudentsBreakdown students;
+
+  void _openUnassignedStudents(BuildContext context) {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => SuperAdminUnassignedStudentsPage(session: session),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -870,30 +1131,35 @@ class _StudentsBreakdownCard extends StatelessWidget {
         const Color(0xFF16934F),
         'Faol o\'qiyotganlar',
         students.active,
+        null,
       ),
       (
         Icons.person_off_rounded,
         const Color(0xFF8A93A5),
         'Guruhsiz talabalar',
         students.unassigned,
+        () => _openUnassignedStudents(context),
       ),
       (
         Icons.pause_circle_rounded,
         const Color(0xFFB45309),
         'O\'qishni to\'xtatganlar',
         students.stopped,
+        null,
       ),
       (
         Icons.workspace_premium_rounded,
         const Color(0xFF7C3AED),
         'Bitirganlar',
         students.finished,
+        null,
       ),
       (
         Icons.receipt_long_rounded,
         const Color(0xFF2563EB),
         'To\'lov jadvalida (shu oy)',
         students.inSnapshot,
+        null,
       ),
     ];
 
@@ -959,39 +1225,51 @@ class _StudentsBreakdownCard extends StatelessWidget {
           ),
           const SizedBox(height: 12),
           for (var i = 0; i < rows.length; i++) ...[
-            Row(
-              children: [
-                Icon(rows[i].$1, size: 15, color: rows[i].$2),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    rows[i].$3,
-                    style: const TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w700,
-                      color: Color(0xFF5A6478),
+            GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: rows[i].$5,
+              child: Row(
+                children: [
+                  Icon(rows[i].$1, size: 15, color: rows[i].$2),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      rows[i].$3,
+                      style: const TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                        color: Color(0xFF5A6478),
+                      ),
                     ),
                   ),
-                ),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 9,
-                    vertical: 3,
-                  ),
-                  decoration: BoxDecoration(
-                    color: rows[i].$2.withValues(alpha: 0.08),
-                    borderRadius: BorderRadius.circular(999),
-                  ),
-                  child: Text(
-                    '${rows[i].$4} ta',
-                    style: TextStyle(
-                      fontSize: 11.5,
-                      fontWeight: FontWeight.w900,
-                      color: rows[i].$2,
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 9,
+                      vertical: 3,
+                    ),
+                    decoration: BoxDecoration(
+                      color: rows[i].$2.withValues(alpha: 0.08),
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                    child: Text(
+                      '${rows[i].$4} ta',
+                      style: TextStyle(
+                        fontSize: 11.5,
+                        fontWeight: FontWeight.w900,
+                        color: rows[i].$2,
+                      ),
                     ),
                   ),
-                ),
-              ],
+                  if (rows[i].$5 != null) ...[
+                    const SizedBox(width: 4),
+                    const Icon(
+                      Icons.chevron_right_rounded,
+                      size: 16,
+                      color: Color(0xFF8A93A5),
+                    ),
+                  ],
+                ],
+              ),
             ),
             if (i < rows.length - 1) ...[
               const SizedBox(height: 8),
@@ -1007,9 +1285,10 @@ class _StudentsBreakdownCard extends StatelessWidget {
 
 /// Fanlar bo'yicha tahlil: tushum ulushi bar bilan + teacherlar ro'yxati
 class _SubjectsCard extends StatelessWidget {
-  const _SubjectsCard({required this.data});
+  const _SubjectsCard({required this.data, required this.teacherPaymentsFuture});
 
   final SuperAdminDashboard data;
+  final Future<List<TeacherMonthPayments>> teacherPaymentsFuture;
 
   @override
   Widget build(BuildContext context) {
@@ -1066,101 +1345,246 @@ class _SubjectsCard extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 12),
-          for (var i = 0; i < data.subjects.length; i++) ...[
-            _SubjectTile(subject: data.subjects[i]),
-            if (i < data.subjects.length - 1) ...[
-              const SizedBox(height: 10),
-              const Divider(height: 1, color: Color(0xFFEDF1F7)),
-              const SizedBox(height: 10),
-            ],
-          ],
+          FutureBuilder<List<TeacherMonthPayments>>(
+            future: teacherPaymentsFuture,
+            builder: (context, snapshot) {
+              final studentsByTeacherId =
+                  <int, List<TeacherMonthPaymentStudent>>{
+                    for (final teacher
+                        in snapshot.data ?? const <TeacherMonthPayments>[])
+                      teacher.teacherId: teacher.students,
+                  };
+              final isLoadingStudents =
+                  snapshot.connectionState == ConnectionState.waiting;
+
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  for (var i = 0; i < data.subjects.length; i++) ...[
+                    _SubjectTile(
+                      subject: data.subjects[i],
+                      studentsByTeacherId: studentsByTeacherId,
+                      isLoadingStudents: isLoadingStudents,
+                    ),
+                    if (i < data.subjects.length - 1) ...[
+                      const SizedBox(height: 10),
+                      const Divider(height: 1, color: Color(0xFFEDF1F7)),
+                      const SizedBox(height: 10),
+                    ],
+                  ],
+                ],
+              );
+            },
+          ),
         ],
       ),
     );
   }
 }
 
-class _SubjectTile extends StatefulWidget {
-  const _SubjectTile({required this.subject});
+class _SubjectTile extends StatelessWidget {
+  const _SubjectTile({
+    required this.subject,
+    required this.studentsByTeacherId,
+    required this.isLoadingStudents,
+  });
 
   final SubjectStat subject;
+  final Map<int, List<TeacherMonthPaymentStudent>> studentsByTeacherId;
+  final bool isLoadingStudents;
 
   @override
-  State<_SubjectTile> createState() => _SubjectTileState();
+  Widget build(BuildContext context) {
+    // To'lov yig'ilish progresi: to'langan / kerak bo'lgan summa
+    final ratio = subject.collectionRatio;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: Text(
+                subject.subjectName,
+                style: const TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w800,
+                  color: Color(0xFF182033),
+                ),
+              ),
+            ),
+            Text(
+              _formatMoney(subject.totalRevenue),
+              style: const TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w900,
+                color: AppTheme.brandColor,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 4),
+        Text(
+          '${subject.totalStudents} talaba • ${subject.teachersCount} teacher',
+          style: const TextStyle(
+            fontSize: 10.5,
+            fontWeight: FontWeight.w600,
+            color: Color(0xFF8A93A5),
+          ),
+        ),
+        const SizedBox(height: 7),
+        // To'lov yig'ilish progresi: to'langan / kerak bo'lgan summa
+        Row(
+          children: [
+            Expanded(
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(999),
+                child: SizedBox(
+                  height: 6,
+                  child: Stack(
+                    children: [
+                      Container(color: const Color(0xFFEDF1F7)),
+                      FractionallySizedBox(
+                        widthFactor: ratio,
+                        child: Container(
+                          decoration: const BoxDecoration(
+                            gradient: LinearGradient(
+                              colors: [Color(0xFFD32F2F), Color(0xFF7C0A05)],
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(width: 6),
+            Text(
+              '${(ratio * 100).round()}%',
+              style: const TextStyle(
+                fontSize: 10,
+                fontWeight: FontWeight.w900,
+                color: AppTheme.brandColor,
+              ),
+            ),
+          ],
+        ),
+        // Teacherlar kesimi — har biri o'ziga xos dropdown,
+        // ochilsa shu fan bo'yicha talabalari ko'rinadi
+        if (subject.teachers.isNotEmpty) ...[
+          const SizedBox(height: 8),
+          for (final teacher in subject.teachers)
+            Padding(
+              padding: const EdgeInsets.only(top: 6),
+              child: _SubjectTeacherTile(
+                teacher: teacher,
+                students:
+                    studentsByTeacherId[teacher.teacherId]
+                        ?.where((s) => s.subjectId == subject.subjectId)
+                        .toList() ??
+                    const [],
+                isLoadingStudents: isLoadingStudents,
+              ),
+            ),
+        ],
+      ],
+    );
+  }
 }
 
-class _SubjectTileState extends State<_SubjectTile> {
+/// Fan ostidagi bitta teacher qatori — bosilsa o'zi ochiladi va
+/// shu teacherning shu fandagi talabalari to'lov holati bilan ko'rinadi
+class _SubjectTeacherTile extends StatefulWidget {
+  const _SubjectTeacherTile({
+    required this.teacher,
+    required this.students,
+    required this.isLoadingStudents,
+  });
+
+  final SubjectTeacherStat teacher;
+  final List<TeacherMonthPaymentStudent> students;
+  final bool isLoadingStudents;
+
+  @override
+  State<_SubjectTeacherTile> createState() => _SubjectTeacherTileState();
+}
+
+class _SubjectTeacherTileState extends State<_SubjectTeacherTile> {
   bool _expanded = false;
 
   @override
   Widget build(BuildContext context) {
-    final subject = widget.subject;
-    // To'lov yig'ilish progresi: to'langan / kerak bo'lgan summa
-    final ratio = subject.collectionRatio;
+    final teacher = widget.teacher;
 
-    return GestureDetector(
-      behavior: HitTestBehavior.opaque,
-      onTap: subject.teachers.isEmpty
-          ? null
-          : () => setState(() => _expanded = !_expanded),
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF8F9FC),
+        borderRadius: BorderRadius.circular(12),
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  subject.subjectName,
-                  style: const TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w800,
-                    color: Color(0xFF182033),
+          GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: () => setState(() => _expanded = !_expanded),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        teacher.teacherName,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontSize: 11.5,
+                          fontWeight: FontWeight.w800,
+                          color: Color(0xFF182033),
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        '${teacher.totalStudents} talaba • '
+                        'Kerak: ${_formatMoney(teacher.totalRequired)} • '
+                        'To\'lanmagan: ${_formatMoney(teacher.unpaidAmount)}',
+                        style: const TextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w700,
+                          color: Color(0xFF7B8495),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
-              ),
-              Text(
-                _formatMoney(subject.totalRevenue),
-                style: const TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w900,
-                  color: AppTheme.brandColor,
-                ),
-              ),
-              if (subject.teachers.isNotEmpty) ...[
-                const SizedBox(width: 4),
-                Icon(
-                  _expanded
-                      ? Icons.keyboard_arrow_up_rounded
-                      : Icons.keyboard_arrow_down_rounded,
-                  size: 17,
-                  color: const Color(0xFF9AA2B2),
+                const SizedBox(width: 6),
+                AnimatedRotation(
+                  turns: _expanded ? 0.5 : 0,
+                  duration: const Duration(milliseconds: 180),
+                  child: const Icon(
+                    Icons.keyboard_arrow_down_rounded,
+                    size: 18,
+                    color: Color(0xFF8A93A5),
+                  ),
                 ),
               ],
-            ],
-          ),
-          const SizedBox(height: 4),
-          Text(
-            '${subject.totalStudents} talaba • ${subject.teachersCount} teacher',
-            style: const TextStyle(
-              fontSize: 10.5,
-              fontWeight: FontWeight.w600,
-              color: Color(0xFF8A93A5),
             ),
           ),
           const SizedBox(height: 7),
-          // To'lov yig'ilish progresi: to'langan / kerak bo'lgan summa
           Row(
             children: [
               Expanded(
                 child: ClipRRect(
                   borderRadius: BorderRadius.circular(999),
                   child: SizedBox(
-                    height: 6,
+                    height: 5,
                     child: Stack(
                       children: [
                         Container(color: const Color(0xFFEDF1F7)),
                         FractionallySizedBox(
-                          widthFactor: ratio,
+                          widthFactor: teacher.collectionRatio,
                           child: Container(
                             decoration: const BoxDecoration(
                               gradient: LinearGradient(
@@ -1176,7 +1600,7 @@ class _SubjectTileState extends State<_SubjectTile> {
               ),
               const SizedBox(width: 6),
               Text(
-                '${(ratio * 100).round()}%',
+                '${(teacher.collectionRatio * 100).round()}%',
                 style: const TextStyle(
                   fontSize: 10,
                   fontWeight: FontWeight.w900,
@@ -1185,91 +1609,202 @@ class _SubjectTileState extends State<_SubjectTile> {
               ),
             ],
           ),
-          // Teacherlar kesimi — har birida fan tushumidagi ulushi mini-bar bilan
-          if (_expanded && subject.teachers.isNotEmpty) ...[
+          if (_expanded) ...[
             const SizedBox(height: 8),
-            for (final teacher in subject.teachers)
-              Padding(
-                padding: const EdgeInsets.only(top: 7, left: 8),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Container(
-                          width: 6,
-                          height: 6,
-                          decoration: const BoxDecoration(
-                            color: AppTheme.brandColor,
-                            shape: BoxShape.circle,
-                          ),
-                        ),
-                        const SizedBox(width: 7),
-                        Expanded(
-                          child: Text(
-                            teacher.teacherName,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                              fontSize: 11.5,
-                              fontWeight: FontWeight.w700,
-                              color: Color(0xFF5A6478),
-                            ),
-                          ),
-                        ),
-                        Text(
-                          '${teacher.totalStudents} talaba • ${_formatMoney(teacher.totalRevenue)}',
-                          style: const TextStyle(
-                            fontSize: 10.5,
-                            fontWeight: FontWeight.w800,
-                            color: Color(0xFF3A4454),
-                          ),
-                        ),
-                      ],
+            const Divider(height: 1, color: Color(0xFFE4E9F1)),
+            const SizedBox(height: 8),
+            if (widget.isLoadingStudents)
+              const Padding(
+                padding: EdgeInsets.symmetric(vertical: 10),
+                child: Center(
+                  child: SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2.2,
+                      color: AppTheme.brandColor,
                     ),
-                    const SizedBox(height: 4),
-                    // Teacher o'quvchilarining to'lov yig'ilish progresi
-                    Padding(
-                      padding: const EdgeInsets.only(left: 13),
-                      child: Row(
-                        children: [
-                          Expanded(
-                            child: ClipRRect(
-                              borderRadius: BorderRadius.circular(999),
-                              child: SizedBox(
-                                height: 4,
-                                child: Stack(
-                                  children: [
-                                    Container(color: const Color(0xFFEDF1F7)),
-                                    FractionallySizedBox(
-                                      widthFactor: teacher.collectionRatio,
-                                      child: Container(
-                                        color: const Color(0xFF2563EB),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 6),
-                          Text(
-                            '${(teacher.collectionRatio * 100).round()}%',
-                            style: const TextStyle(
-                              fontSize: 9.5,
-                              fontWeight: FontWeight.w900,
-                              color: Color(0xFF2563EB),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
+                  ),
                 ),
-              ),
+              )
+            else if (widget.students.isEmpty)
+              const Text(
+                'Talabalar topilmadi',
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w700,
+                  color: Color(0xFF8A93A5),
+                ),
+              )
+            else
+              for (final student in widget.students) ...[
+                _TeacherStudentPaymentRow(student: student),
+                if (student != widget.students.last)
+                  const SizedBox(height: 6),
+              ],
           ],
         ],
       ),
+    );
+  }
+}
+
+/// Bitta talabaning teacher/fan bo'yicha to'lov qatori
+/// (student ID ko'rsatilmaydi — shart emas)
+class _TeacherStudentPaymentRow extends StatelessWidget {
+  const _TeacherStudentPaymentRow({required this.student});
+
+  final TeacherMonthPaymentStudent student;
+
+  static const _stateMap = {
+    'paid': (label: 'To\'langan', color: Color(0xFF16934F)),
+    'partial': (label: 'Qisman', color: Color(0xFFB45309)),
+    'unpaid': (label: 'To\'lanmagan', color: Color(0xFFDC2626)),
+  };
+
+  @override
+  Widget build(BuildContext context) {
+    final info =
+        _stateMap[student.paymentState] ??
+        (label: student.paymentState, color: const Color(0xFF8A93A5));
+
+    return Container(
+      padding: const EdgeInsets.all(9),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: const Color(0xFFE4E9F1)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  student.fullName,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w800,
+                    color: Color(0xFF182033),
+                  ),
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 7,
+                  vertical: 3,
+                ),
+                decoration: BoxDecoration(
+                  color: info.color.withValues(alpha: 0.10),
+                  borderRadius: BorderRadius.circular(999),
+                ),
+                child: Text(
+                  info.label,
+                  style: TextStyle(
+                    fontSize: 9.5,
+                    fontWeight: FontWeight.w800,
+                    color: info.color,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          if (student.groupName.isNotEmpty || student.phone.isNotEmpty) ...[
+            const SizedBox(height: 2),
+            Text(
+              [
+                if (student.groupName.isNotEmpty) student.groupName,
+                if (student.phone.isNotEmpty) student.phone,
+              ].join(' • '),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                fontSize: 9.5,
+                fontWeight: FontWeight.w600,
+                color: Color(0xFF8A93A5),
+              ),
+            ),
+          ],
+          const SizedBox(height: 6),
+          Row(
+            children: [
+              Expanded(
+                child: _amountLabel(
+                  'Kerak',
+                  student.requiredAmount,
+                  const Color(0xFF3A4256),
+                ),
+              ),
+              Expanded(
+                child: _amountLabel(
+                  'To\'landi',
+                  student.paidAmount,
+                  const Color(0xFF16934F),
+                ),
+              ),
+              Expanded(
+                child: _amountLabel(
+                  'Qarz',
+                  student.debtAmount,
+                  student.debtAmount > 0
+                      ? const Color(0xFFDC2626)
+                      : const Color(0xFF8A93A5),
+                ),
+              ),
+            ],
+          ),
+          if (student.discountAmount > 0) ...[
+            const SizedBox(height: 6),
+            Container(
+              padding: const EdgeInsets.symmetric(
+                horizontal: 7,
+                vertical: 3,
+              ),
+              decoration: BoxDecoration(
+                color: const Color(0xFF7C3AED).withValues(alpha: 0.08),
+                borderRadius: BorderRadius.circular(999),
+              ),
+              child: Text(
+                'Chegirma: ${_formatMoney(student.discountAmount)}',
+                style: const TextStyle(
+                  fontSize: 9.5,
+                  fontWeight: FontWeight.w800,
+                  color: Color(0xFF7C3AED),
+                ),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _amountLabel(String label, double value, Color color) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: const TextStyle(
+            fontSize: 8.5,
+            fontWeight: FontWeight.w700,
+            color: Color(0xFF9AA2B2),
+          ),
+        ),
+        Text(
+          _formatMoney(value),
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: TextStyle(
+            fontSize: 10,
+            fontWeight: FontWeight.w900,
+            color: color,
+          ),
+        ),
+      ],
     );
   }
 }

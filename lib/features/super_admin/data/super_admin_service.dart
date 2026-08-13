@@ -315,6 +315,33 @@ class SuperAdminService {
     );
   }
 
+  /// Har bir teacherning tanlangan oydagi talabalari va to'lov holati
+  /// ("Fanlar bo'yicha tahlil" kartasida teacher ochilganda ko'rsatish uchun)
+  Future<List<TeacherMonthPayments>> fetchTeacherMonthlyPayments(
+    AuthSession session, {
+    required String month,
+  }) async {
+    final response = await _client
+        .get(
+          _uri('/api/teacher-salary/months/$month/teachers'),
+          headers: _headers(session),
+        )
+        .timeout(_timeout);
+
+    final payload = _decode(response);
+    _ensureSuccess(response, payload, 'Teacherlar to\'lovi yuklanmadi');
+    final data = payload['data'];
+    final teachers = data is Map ? data['teachers'] : null;
+    if (teachers is! List) return const [];
+    return teachers
+        .whereType<Map>()
+        .map(
+          (item) =>
+              TeacherMonthPayments.fromJson(Map<String, dynamic>.from(item)),
+        )
+        .toList();
+  }
+
   /// Davomat nazorati: teacherlar ro'yxati.
   /// [date] (YYYY-MM-DD) berilsa o'sha kunning holati, bo'lmasa bugungi.
   Future<List<AttendanceTeacher>> fetchAttendanceTeachers(
@@ -342,6 +369,72 @@ class SuperAdminService {
         .toList();
   }
 
+  /// O'qituvchilar ro'yxati (to'liq ma'lumot: fanlar, guruhlar soni, holat)
+  Future<List<TeacherDirectoryEntry>> fetchTeachers(
+    AuthSession session, {
+    String? status,
+  }) async {
+    final response = await _client
+        .get(
+          _uri('/api/users/teachers', {
+            if (status != null && status.isNotEmpty) 'status': status,
+          }),
+          headers: _headers(session),
+        )
+        .timeout(_timeout);
+
+    final payload = _decode(response);
+    _ensureSuccess(response, payload, 'O\'qituvchilar yuklanmadi');
+    final data = payload['teachers'];
+    if (data is! List) return const [];
+    return data
+        .whereType<Map>()
+        .map(
+          (item) =>
+              TeacherDirectoryEntry.fromJson(Map<String, dynamic>.from(item)),
+        )
+        .toList();
+  }
+
+  /// Guruhsiz (hech qanday guruhga biriktirilmagan) talabalar ro'yxati —
+  /// har biri ro'yxatdan o'tishda tanlagan fani bilan
+  Future<List<UnassignedStudent>> fetchUnassignedStudents(
+    AuthSession session,
+  ) async {
+    final students = <UnassignedStudent>[];
+    var page = 1;
+    var totalPages = 1;
+    do {
+      final response = await _client
+          .get(
+            _uri('/api/students/all', {
+              'unassigned': 'true',
+              'page': page.toString(),
+              'limit': '100',
+            }),
+            headers: _headers(session),
+          )
+          .timeout(_timeout);
+
+      final payload = _decode(response);
+      _ensureSuccess(response, payload, 'Guruhsiz talabalar yuklanmadi');
+      final data = payload['students'];
+      if (data is List) {
+        students.addAll(
+          data.whereType<Map>().map(
+            (item) =>
+                UnassignedStudent.fromJson(Map<String, dynamic>.from(item)),
+          ),
+        );
+      }
+      final pagination = payload['pagination'];
+      totalPages = pagination is Map ? _asInt(pagination['total_pages']) : 1;
+      page++;
+      // Xavfsizlik uchun cheklov — 1000 tadan ortiq talaba bo'lmaydi deb
+    } while (page <= totalPages && page <= 10);
+    return students;
+  }
+
   /// Tanlangan teacherning guruhlari (davomat nazorati uchun)
   Future<List<AttendanceTeacherGroup>> fetchTeacherGroups(
     AuthSession session,
@@ -366,6 +459,29 @@ class SuperAdminService {
               AttendanceTeacherGroup.fromJson(Map<String, dynamic>.from(item)),
         )
         .toList();
+  }
+
+  /// Bitta guruhning tanlangan oydagi to'liq davomat jadvali:
+  /// har bir talaba uchun har bir dars kuni bo'yicha keldi/kelmadi/kechikdi
+  /// belgisi + to'lov holati (saytdagi guruh davomat sahifasi bilan bir xil).
+  Future<MonthlyAttendanceData> fetchMonthlyAttendance(
+    AuthSession session, {
+    required int groupId,
+    required String month,
+  }) async {
+    final response = await _client
+        .get(
+          _uri('/api/attendance/groups/$groupId/monthly', {'month': month}),
+          headers: _headers(session),
+        )
+        .timeout(_timeout);
+
+    final payload = _decode(response);
+    _ensureSuccess(response, payload, 'Oylik davomat yuklanmadi');
+    final data = payload['data'];
+    return MonthlyAttendanceData.fromJson(
+      data is Map ? Map<String, dynamic>.from(data) : const {},
+    );
   }
 
   void dispose() {
@@ -511,6 +627,7 @@ class StudentsBreakdown {
 
 class SubjectStat {
   const SubjectStat({
+    required this.subjectId,
     required this.subjectName,
     required this.totalStudents,
     required this.totalRevenue,
@@ -519,6 +636,7 @@ class SubjectStat {
     required this.teachers,
   });
 
+  final int subjectId;
   final String subjectName;
   final int totalStudents;
 
@@ -539,6 +657,7 @@ class SubjectStat {
   factory SubjectStat.fromJson(Map<String, dynamic> json) {
     final teachersRaw = json['teachers'];
     return SubjectStat(
+      subjectId: _asInt(json['subject_id']),
       subjectName: _asString(json['subject_name']),
       totalStudents: _asInt(json['total_students_count']),
       totalRevenue: _asDouble(json['total_revenue']),
@@ -560,16 +679,24 @@ class SubjectStat {
 
 class SubjectTeacherStat {
   const SubjectTeacherStat({
+    required this.teacherId,
     required this.teacherName,
     required this.totalStudents,
     required this.totalRevenue,
     required this.totalRequired,
   });
 
+  final int teacherId;
   final String teacherName;
   final int totalStudents;
   final double totalRevenue;
   final double totalRequired;
+
+  /// Talab qilingan summadan hali to'lanmagan qoldiq
+  double get unpaidAmount => (totalRequired - totalRevenue).clamp(
+    0,
+    double.infinity,
+  );
 
   /// Shu teacher o'quvchilarining to'lov yig'ilish progresi (0..1)
   double get collectionRatio => totalRequired > 0
@@ -578,10 +705,90 @@ class SubjectTeacherStat {
 
   factory SubjectTeacherStat.fromJson(Map<String, dynamic> json) {
     return SubjectTeacherStat(
+      teacherId: _asInt(json['teacher_id']),
       teacherName: _asString(json['teacher_name']),
       totalStudents: _asInt(json['total_students_count']),
       totalRevenue: _asDouble(json['total_revenue']),
       totalRequired: _asDouble(json['total_required']),
+    );
+  }
+}
+
+/// Bitta teacherning tanlangan oydagi barcha talabalari va to'lov holati
+/// (/api/teacher-salary/months/:month/teachers javobidagi teachers[] elementi)
+class TeacherMonthPayments {
+  const TeacherMonthPayments({
+    required this.teacherId,
+    required this.students,
+  });
+
+  final int teacherId;
+  final List<TeacherMonthPaymentStudent> students;
+
+  factory TeacherMonthPayments.fromJson(Map<String, dynamic> json) {
+    final teacher = json['teacher'];
+    final teacherMap = teacher is Map
+        ? Map<String, dynamic>.from(teacher)
+        : const {};
+    final studentsRaw = json['students'];
+    return TeacherMonthPayments(
+      teacherId: _asInt(teacherMap['id']),
+      students: studentsRaw is List
+          ? studentsRaw
+                .whereType<Map>()
+                .map(
+                  (item) => TeacherMonthPaymentStudent.fromJson(
+                    Map<String, dynamic>.from(item),
+                  ),
+                )
+                .toList()
+          : const [],
+    );
+  }
+}
+
+/// Bitta talabaning shu teacher/oydagi to'lov qatori
+class TeacherMonthPaymentStudent {
+  const TeacherMonthPaymentStudent({
+    required this.studentId,
+    required this.subjectId,
+    required this.groupName,
+    required this.fullName,
+    required this.phone,
+    required this.paymentState,
+    required this.requiredAmount,
+    required this.discountAmount,
+    required this.paidAmount,
+  });
+
+  final int studentId;
+
+  /// Fan bo'yicha filtrlash uchun (guruh qaysi fanga tegishli)
+  final int subjectId;
+  final String groupName;
+  final String fullName;
+  final String phone;
+
+  /// 'paid' / 'partial' / 'unpaid'
+  final String paymentState;
+  final double requiredAmount;
+  final double discountAmount;
+  final double paidAmount;
+
+  double get debtAmount =>
+      (requiredAmount - paidAmount).clamp(0, double.infinity);
+
+  factory TeacherMonthPaymentStudent.fromJson(Map<String, dynamic> json) {
+    return TeacherMonthPaymentStudent(
+      studentId: _asInt(json['student_id']),
+      subjectId: _asInt(json['subject_id']),
+      groupName: _asString(json['group_name']),
+      fullName: _asString(json['full_name']),
+      phone: _asString(json['phone']),
+      paymentState: _asString(json['payment_state']),
+      requiredAmount: _asDouble(json['required_amount']),
+      discountAmount: _asDouble(json['discount_amount']),
+      paidAmount: _asDouble(json['paid_amount']),
     );
   }
 }
@@ -686,17 +893,42 @@ class SnapshotSummary {
     required this.totalStudents,
     required this.activeStudents,
     required this.stoppedStudents,
+    required this.paidStudents,
+    required this.partialStudents,
+    required this.unpaidStudents,
   });
 
   final int totalStudents;
   final int activeStudents;
   final int stoppedStudents;
 
+  /// To'liq to'lagan o'quvchilar soni
+  final int paidStudents;
+
+  /// Qisman to'lagan o'quvchilar soni
+  final int partialStudents;
+
+  /// Umuman to'lamagan o'quvchilar soni
+  final int unpaidStudents;
+
+  /// To'lov jadvalidagi jami yozuvlar (paid + partial + unpaid)
+  int get paymentRecordsTotal => paidStudents + partialStudents + unpaidStudents;
+
+  /// To'lagan (to'liq + qisman) foizi, 0..100
+  int get paidPercent {
+    if (paymentRecordsTotal == 0) return 0;
+    return (((paidStudents + partialStudents) / paymentRecordsTotal) * 100)
+        .round();
+  }
+
   factory SnapshotSummary.fromJson(Map<String, dynamic> json) {
     return SnapshotSummary(
       totalStudents: _asInt(json['total_students']),
       activeStudents: _asInt(json['active_students']),
       stoppedStudents: _asInt(json['stopped_students']),
+      paidStudents: _asInt(json['paid_students']),
+      partialStudents: _asInt(json['partial_students']),
+      unpaidStudents: _asInt(json['unpaid_students']),
     );
   }
 }
@@ -759,6 +991,7 @@ class AttendanceTeacherGroup {
     required this.subjectName,
     required this.roomNumber,
     required this.studentsCount,
+    required this.schedule,
   });
 
   final int id;
@@ -766,6 +999,7 @@ class AttendanceTeacherGroup {
   final String subjectName;
   final String roomNumber;
   final int studentsCount;
+  final GroupSchedule schedule;
 
   factory AttendanceTeacherGroup.fromJson(Map<String, dynamic> json) {
     return AttendanceTeacherGroup(
@@ -776,6 +1010,314 @@ class AttendanceTeacherGroup {
       studentsCount: _asInt(
         json['active_students_count'] ?? json['students_count'],
       ),
+      schedule: GroupSchedule.fromJson(json['schedule']),
+    );
+  }
+}
+
+/// Guruhning dars kunlari va vaqti (masalan: Dushanba, Chorshanba • 10:00-12:00)
+class GroupSchedule {
+  const GroupSchedule({required this.days, required this.time});
+
+  final List<String> days;
+
+  /// "10:00-12:00" ko'rinishida (bo'lmasa bo'sh)
+  final String time;
+
+  bool get isEmpty => days.isEmpty && time.isEmpty;
+
+  String get label {
+    final parts = <String>[
+      if (days.isNotEmpty) days.join(', '),
+      if (time.isNotEmpty) time,
+    ];
+    return parts.join(' • ');
+  }
+
+  factory GroupSchedule.fromJson(Object? json) {
+    if (json is! Map) return const GroupSchedule(days: [], time: '');
+    final rawDays = json['days'];
+    final days = rawDays is List
+        ? rawDays
+              .map((d) => _capitalizeWeekday(d.toString().trim()))
+              .where((d) => d.isNotEmpty)
+              .toList()
+        : <String>[];
+    return GroupSchedule(days: days, time: _asString(json['time']));
+  }
+}
+
+String _capitalizeWeekday(String value) {
+  if (value.isEmpty) return value;
+  return value[0].toUpperCase() + value.substring(1).toLowerCase();
+}
+
+/// Bitta guruhning tanlangan oydagi to'liq davomat jadvali
+/// (/api/attendance/groups/:group_id/monthly javobi)
+class MonthlyAttendanceData {
+  const MonthlyAttendanceData({
+    required this.month,
+    required this.groupName,
+    required this.subjectName,
+    required this.teacherName,
+    required this.schedule,
+    required this.lessons,
+    required this.students,
+  });
+
+  final String month;
+  final String groupName;
+  final String subjectName;
+  final String teacherName;
+  final GroupSchedule schedule;
+  final List<MonthlyAttendanceLesson> lessons;
+  final List<MonthlyAttendanceStudent> students;
+
+  factory MonthlyAttendanceData.fromJson(Map<String, dynamic> json) {
+    final group = json['group'];
+    final groupMap = group is Map ? Map<String, dynamic>.from(group) : const {};
+    final lessonsRaw = json['lessons'];
+    final studentsRaw = json['students'];
+    return MonthlyAttendanceData(
+      month: _asString(json['month']),
+      groupName: _asString(groupMap['group_name']),
+      subjectName: _asString(groupMap['subject_name']),
+      teacherName: _asString(groupMap['teacher_name']),
+      schedule: GroupSchedule.fromJson(groupMap['schedule']),
+      lessons: lessonsRaw is List
+          ? lessonsRaw
+                .whereType<Map>()
+                .map(
+                  (item) => MonthlyAttendanceLesson.fromJson(
+                    Map<String, dynamic>.from(item),
+                  ),
+                )
+                .toList()
+          : const [],
+      students: studentsRaw is List
+          ? studentsRaw
+                .whereType<Map>()
+                .map(
+                  (item) => MonthlyAttendanceStudent.fromJson(
+                    Map<String, dynamic>.from(item),
+                  ),
+                )
+                .toList()
+          : const [],
+    );
+  }
+}
+
+/// Oydagi bitta dars kuni (jadval ustuni)
+class MonthlyAttendanceLesson {
+  const MonthlyAttendanceLesson({
+    required this.lessonId,
+    required this.date,
+    required this.isHoliday,
+  });
+
+  final int lessonId;
+
+  /// YYYY-MM-DD
+  final String date;
+  final bool isHoliday;
+
+  /// Kunning raqami (masalan "03")
+  String get dayLabel => date.length >= 10 ? date.substring(8, 10) : date;
+
+  factory MonthlyAttendanceLesson.fromJson(Map<String, dynamic> json) {
+    return MonthlyAttendanceLesson(
+      lessonId: _asInt(json['lesson_id'] ?? json['id']),
+      date: _asString(json['date']),
+      isHoliday: json['is_holiday'] == true,
+    );
+  }
+}
+
+/// Bitta talabaning oylik davomat va to'lov qatori
+class MonthlyAttendanceStudent {
+  const MonthlyAttendanceStudent({
+    required this.studentId,
+    required this.studentName,
+    required this.phone,
+    required this.monthlyStatus,
+    required this.paidAmount,
+    required this.discountAmount,
+    required this.debtAmount,
+    required this.totalPresent,
+    required this.totalAbsent,
+    required this.totalLate,
+    required this.totalLessons,
+    required this.statusByLessonId,
+  });
+
+  final int studentId;
+
+  /// Backend "Familiya Ism" ko'rinishida qaytaradi
+  final String studentName;
+  final String phone;
+
+  /// 'active' / 'stopped' / 'finished' va h.k.
+  final String monthlyStatus;
+  final double paidAmount;
+  final double discountAmount;
+  final double debtAmount;
+  final int totalPresent;
+  final int totalAbsent;
+  final int totalLate;
+  final int totalLessons;
+
+  /// lessonId -> 'keldi' / 'kelmadi' / 'kechikdi' / null (belgilanmagan)
+  final Map<int, String?> statusByLessonId;
+
+  bool get isActive => monthlyStatus == 'active';
+
+  factory MonthlyAttendanceStudent.fromJson(Map<String, dynamic> json) {
+    final recordsRaw = json['attendance_records'];
+    final statusMap = <int, String?>{};
+    if (recordsRaw is List) {
+      for (final record in recordsRaw.whereType<Map>()) {
+        final lessonId = _asInt(record['lesson_id']);
+        final status = record['status'];
+        statusMap[lessonId] = status == null ? null : _asString(status);
+      }
+    }
+    return MonthlyAttendanceStudent(
+      studentId: _asInt(json['student_id']),
+      studentName: _asString(json['student_name']),
+      phone: _asString(json['phone']),
+      monthlyStatus: _asString(json['monthly_status']),
+      paidAmount: _asDouble(json['paid_amount']),
+      discountAmount: _asDouble(json['discount_amount']),
+      debtAmount: _asDouble(json['debt_amount']),
+      totalPresent: _asInt(json['total_present']),
+      totalAbsent: _asInt(json['total_absent']),
+      totalLate: _asInt(json['total_late']),
+      totalLessons: _asInt(json['total_lessons']),
+      statusByLessonId: statusMap,
+    );
+  }
+}
+
+/// Guruhsiz talaba — /api/students/all?unassigned=true javobidagi
+/// students[] elementi
+class UnassignedStudent {
+  const UnassignedStudent({
+    required this.id,
+    required this.name,
+    required this.surname,
+    required this.phone,
+    required this.phone2,
+    required this.fatherName,
+    required this.fatherPhone,
+    required this.address,
+    required this.age,
+    required this.subjectId,
+    required this.subjectName,
+    required this.registrationDate,
+    required this.unassignedReason,
+  });
+
+  final int id;
+  final String name;
+  final String surname;
+  final String phone;
+  final String phone2;
+  final String fatherName;
+  final String fatherPhone;
+  final String address;
+  final int? age;
+  final int subjectId;
+  final String subjectName;
+  final String registrationDate;
+  final String unassignedReason;
+
+  String get fullName =>
+      [surname, name].where((part) => part.trim().isNotEmpty).join(' ');
+
+  /// Ro'yxatdan o'tgan sana (DD.MM.YYYY), parse bo'lmasa xom qiymat
+  String get registrationDateLabel {
+    final parsed = DateTime.tryParse(registrationDate);
+    if (parsed == null) return registrationDate;
+    final local = parsed.toLocal();
+    return '${local.day.toString().padLeft(2, '0')}.'
+        '${local.month.toString().padLeft(2, '0')}.${local.year}';
+  }
+
+  factory UnassignedStudent.fromJson(Map<String, dynamic> json) {
+    return UnassignedStudent(
+      id: _asInt(json['id']),
+      name: _asString(json['name']),
+      surname: _asString(json['surname']),
+      phone: _asString(json['phone']),
+      phone2: _asString(json['phone2']),
+      fatherName: _asString(json['father_name']),
+      fatherPhone: _asString(json['father_phone']),
+      address: _asString(json['address']),
+      age: json['age'] == null ? null : _asInt(json['age']),
+      subjectId: _asInt(json['subject_id']),
+      subjectName: _asString(json['subject_name']),
+      registrationDate: _asString(json['registration_date']),
+      unassignedReason: _asString(json['unassigned_reason']),
+    );
+  }
+}
+
+/// O'qituvchilar ro'yxati sahifasidagi bitta yozuv
+/// (/api/users/teachers javobidan)
+class TeacherDirectoryEntry {
+  const TeacherDirectoryEntry({
+    required this.id,
+    required this.name,
+    required this.surname,
+    required this.username,
+    required this.phone,
+    required this.status,
+    required this.subjectsList,
+    required this.groupCount,
+    required this.activeStudentCount,
+    required this.registrationDate,
+  });
+
+  final int id;
+  final String name;
+  final String surname;
+  final String username;
+  final String phone;
+  final String status;
+  final String subjectsList;
+  final int groupCount;
+  final int activeStudentCount;
+  final String registrationDate;
+
+  String get fullName =>
+      [surname, name].where((part) => part.trim().isNotEmpty).join(' ');
+
+  bool get isActive => status == 'active';
+  bool get isOnLeave => status == 'on_leave';
+  bool get isTerminated => status == 'terminated';
+
+  /// Ro'yxatdan o'tgan sana (DD.MM.YYYY), parse bo'lmasa xom qiymat
+  String get joinedDateLabel {
+    final parsed = DateTime.tryParse(registrationDate);
+    if (parsed == null) return registrationDate;
+    final local = parsed.toLocal();
+    return '${local.day.toString().padLeft(2, '0')}.'
+        '${local.month.toString().padLeft(2, '0')}.${local.year}';
+  }
+
+  factory TeacherDirectoryEntry.fromJson(Map<String, dynamic> json) {
+    return TeacherDirectoryEntry(
+      id: _asInt(json['id']),
+      name: _asString(json['name']),
+      surname: _asString(json['surname']),
+      username: _asString(json['username']),
+      phone: _asString(json['phone']),
+      status: _asString(json['status']),
+      subjectsList: _asString(json['subjects_list']),
+      groupCount: _asInt(json['groupCount']),
+      activeStudentCount: _asInt(json['activeStudentCount']),
+      registrationDate: _asString(json['registrationDate']),
     );
   }
 }
