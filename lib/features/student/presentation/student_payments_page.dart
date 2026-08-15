@@ -496,8 +496,16 @@ class _PaymentCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final paymentStatus = _paymentStatusLabel(enrollment.paymentStatus);
-    final statusColor = _paymentStatusColor(enrollment.paymentStatus);
+    // Guruh shu oyda davomatdan to'xtatilgan bo'lsa, bu holat to'lov
+    // holatidan (to'langan/to'lanmagan) ustun turishi kerak — aks holda
+    // to'xtatilgan guruh ham oddiy "to'lanmagan" bo'lib ko'rinib qolardi.
+    final isStopped = enrollment.monthlyStatus == 'stopped';
+    final paymentStatus = isStopped
+        ? 'To\'xtatgan'
+        : _paymentStatusLabel(enrollment.paymentStatus);
+    final statusColor = isStopped
+        ? const Color(0xFFB45309)
+        : _paymentStatusColor(enrollment.paymentStatus);
     final paidRatio = enrollment.requiredAmount > 0
         ? (enrollment.paidAmount / enrollment.requiredAmount).clamp(0.0, 1.0)
         : 0.0;

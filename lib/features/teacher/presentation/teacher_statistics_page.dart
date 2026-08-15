@@ -274,22 +274,19 @@ class _TeacherStatisticsPageState extends State<TeacherStatisticsPage> {
         : null;
     if (!mounted) return;
 
-    final result = await showModalBottomSheet<TeacherLessonStatisticsReport>(
-      context: context,
-      isScrollControlled: true,
-      useSafeArea: true,
-      backgroundColor: Colors.transparent,
-      builder: (sheetContext) {
-        return _LessonStatisticsEditorSheet(
+    final result = await Navigator.of(context).push<TeacherLessonStatisticsReport>(
+      MaterialPageRoute(
+        builder: (_) => _LessonStatisticsEditorSheet(
           lesson: lesson,
           groupName: groupName,
           students: students,
           initialReport: existingReport,
           readOnly: readOnly,
           columnCatalog: _columnCatalog,
+          fullScreen: true,
           lastUsedColumns: lastUsedColumns,
-        );
-      },
+        ),
+      ),
     );
 
     if (result == null) return;
@@ -1523,6 +1520,7 @@ class _LessonStatisticsEditorSheet extends StatefulWidget {
     required this.initialReport,
     required this.readOnly,
     required this.columnCatalog,
+    this.fullScreen = false,
     this.lastUsedColumns,
   });
 
@@ -1532,6 +1530,7 @@ class _LessonStatisticsEditorSheet extends StatefulWidget {
   final TeacherLessonStatisticsReport? initialReport;
   final bool readOnly;
   final List<TeacherReportColumnCatalogEntry> columnCatalog;
+  final bool fullScreen;
 
   /// Teacher oldingi darsda saqlagan ustunlar — yangi (hisoboti yo'q)
   /// darsni ochganda standart 4 ta ustun o'rniga shu taklif etiladi.
@@ -2359,12 +2358,11 @@ class _LessonStatisticsEditorSheetState
       controller: controller,
       enabled: enabled,
       keyboardType: TextInputType.number,
-      textInputAction: TextInputAction.done,
+      textInputAction: TextInputAction.next,
+      scrollPadding: EdgeInsets.zero,
       textAlign: TextAlign.center,
       inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-      onChanged: (_) => setState(() {}),
-      onTapOutside: (_) => FocusManager.instance.primaryFocus?.unfocus(),
-      onEditingComplete: () => FocusManager.instance.primaryFocus?.unfocus(),
+      onFieldSubmitted: (_) => FocusScope.of(context).nextFocus(),
       decoration: InputDecoration(
         isDense: true,
         filled: true,
@@ -2437,21 +2435,19 @@ class _LessonStatisticsEditorSheetState
 
   Widget _buildColumnSettingsButton() {
     if (_readOnly) return const SizedBox.shrink();
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16),
-      child: Align(
-        alignment: Alignment.centerRight,
-        child: TextButton.icon(
-          onPressed: _showColumnSettingsModal,
-          style: TextButton.styleFrom(
-            foregroundColor: AppTheme.brandColor,
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-            backgroundColor: Colors.white,
-            side: const BorderSide(color: Color(0xFFD6DDEA)),
-          ),
-          icon: const Icon(Icons.tune_rounded, size: 18),
-          label: const Text('Ustunlarni sozlash'),
-        ),
+    return Container(
+      width: 44,
+      height: 44,
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: const Color(0xFFD6DDEA)),
+      ),
+      child: IconButton(
+        onPressed: _showColumnSettingsModal,
+        icon: const Icon(Icons.tune_rounded, size: 20),
+        color: AppTheme.brandColor,
+        tooltip: 'Ustunlarni sozlash',
       ),
     );
   }
@@ -2459,10 +2455,6 @@ class _LessonStatisticsEditorSheetState
   Widget _studentRow(int index, _StatisticsTableLayout layout) {
     final student = widget.students[index];
     final controllers = _controllers[index];
-    final total = _totalFor(controllers);
-    final percent = _percentFor(total);
-    final feedback = _feedbackFor(percent);
-    final feedbackColor = _feedbackColor(feedback);
     final nameLines = _splitStudentName(student.studentName);
 
     return Container(
@@ -2523,263 +2515,213 @@ class _LessonStatisticsEditorSheetState
             ),
             const SizedBox(width: _statisticsColumnGap),
           ],
-          SizedBox(
-            width: layout.totalWidth,
-            child: Text(
-              '$total',
-              textAlign: TextAlign.center,
-              style: const TextStyle(
-                fontSize: 10,
-                fontWeight: FontWeight.w800,
-                color: Color(0xFF182033),
-              ),
-            ),
-          ),
-          if (_gradingEnabled) ...[
-            SizedBox(
-              width: layout.percentWidth,
-              child: Text(
-                '$percent%',
-                textAlign: TextAlign.center,
-                style: const TextStyle(
-                  fontSize: 10,
-                  fontWeight: FontWeight.w800,
-                  color: Color(0xFF182033),
-                ),
-              ),
-            ),
-            SizedBox(
-              width: layout.feedbackWidth,
-              child: Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 4,
-                  vertical: 4,
-                ),
-                decoration: BoxDecoration(
-                  color: feedbackColor.withValues(alpha: 0.10),
-                  borderRadius: BorderRadius.circular(999),
-                ),
-                child: Text(
-                  feedback,
-                  textAlign: TextAlign.center,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    fontSize: 8.0,
-                    fontWeight: FontWeight.w900,
-                    color: feedbackColor,
+          AnimatedBuilder(
+            animation: Listenable.merge(controllers.scores.values.toList()),
+            builder: (context, _) {
+              final total = _totalFor(controllers);
+              final percent = _percentFor(total);
+              final feedback = _feedbackFor(percent);
+              final feedbackColor = _feedbackColor(feedback);
+              return Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  SizedBox(
+                    width: layout.totalWidth,
+                    child: Text(
+                      '$total',
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(
+                        fontSize: 10,
+                        fontWeight: FontWeight.w800,
+                        color: Color(0xFF182033),
+                      ),
+                    ),
                   ),
-                ),
-              ),
-            ),
-          ],
+                  if (_gradingEnabled) ...[
+                    SizedBox(
+                      width: layout.percentWidth,
+                      child: Text(
+                        '$percent%',
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w800,
+                          color: Color(0xFF182033),
+                        ),
+                      ),
+                    ),
+                    SizedBox(
+                      width: layout.feedbackWidth,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 4,
+                          vertical: 4,
+                        ),
+                        decoration: BoxDecoration(
+                          color: feedbackColor.withValues(alpha: 0.10),
+                          borderRadius: BorderRadius.circular(999),
+                        ),
+                        child: Text(
+                          feedback,
+                          textAlign: TextAlign.center,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontSize: 8.0,
+                            fontWeight: FontWeight.w900,
+                            color: feedbackColor,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ],
+              );
+            },
+          ),
         ],
       ),
     );
   }
 
-  @override
-  Widget build(BuildContext context) {
+  Widget _buildEditorContent(BuildContext context) {
     final enabledColumns = _enabledColumns;
-    return FractionallySizedBox(
-      heightFactor: 1.0,
-      child: Material(
-        color: const Color(0xFFF6F7FB),
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
-        clipBehavior: Clip.antiAlias,
-        child: SafeArea(
-          top: false,
-          child: Column(
+    return SafeArea(
+      top: widget.fullScreen,
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final layout = _layoutFor(constraints.maxWidth);
+          return Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Padding(
-                padding: const EdgeInsets.fromLTRB(16, 12, 16, 10),
+                padding: const EdgeInsets.fromLTRB(12, 10, 16, 6),
                 child: Row(
                   children: [
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            _readOnly
-                                ? 'Hisobotni ko\'rish'
-                                : 'Statistika yuborish',
-                            style: const TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.w900,
-                              color: Color(0xFF182033),
-                            ),
-                          ),
-                          const SizedBox(height: 2),
-                          Text(
-                            '${widget.groupName} • ${widget.lesson.formattedDate}',
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                              fontSize: 11,
-                              fontWeight: FontWeight.w600,
-                              color: Color(0xFF64748B),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
                     IconButton(
                       onPressed: () => Navigator.of(context).pop(),
-                      icon: const Icon(Icons.close_rounded),
+                      icon: const Icon(Icons.arrow_back_rounded),
+                      tooltip: 'Orqaga qaytish',
                     ),
+                    const SizedBox(width: 2),
+                    Expanded(
+                      child: _buildGradingModeTabs(),
+                    ),
+                    const SizedBox(width: 8),
+                    _buildColumnSettingsButton(),
                   ],
                 ),
               ),
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                child: Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(18),
-                    border: Border.all(color: const Color(0xFFE4E9F1)),
-                  ),
-                  child: Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
-                    crossAxisAlignment: WrapCrossAlignment.center,
-                    children: [
-                      _MiniBadge(
-                        icon: Icons.school_rounded,
-                        label: widget.students.length.toString(),
-                      ),
-                      _MiniBadge(
-                        icon: Icons.calendar_month_rounded,
-                        label: widget.lesson.weekdayName,
-                      ),
-                      _MiniBadge(
-                        icon: Icons.timer_outlined,
-                        label:
-                            '${widget.lesson.startTime}-${widget.lesson.endTime}',
-                      ),
-                      const _MiniBadge(
-                        icon: Icons.auto_awesome_rounded,
-                        label: 'Avto hisob',
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-              const SizedBox(height: 10),
-              _buildGradingModeTabs(),
-              const SizedBox(height: 8),
-              _buildColumnSettingsButton(),
-              const SizedBox(height: 12),
               Expanded(
-                child: LayoutBuilder(
-                  builder: (context, constraints) {
-                    final layout = _layoutFor(constraints.maxWidth);
-                    return SingleChildScrollView(
-                      scrollDirection: Axis.horizontal,
+                child: SingleChildScrollView(
+                  keyboardDismissBehavior:
+                      ScrollViewKeyboardDismissBehavior.onDrag,
+                  padding: const EdgeInsets.only(bottom: 16),
+                  child: SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
                       child: SizedBox(
                         width: layout.tableWidth,
-                        height: constraints.maxHeight,
                         child: Column(
                           children: [
-                            Padding(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 16,
+                            Container(
+                              decoration: BoxDecoration(
+                                color: const Color(0xFF0B4A7A),
+                                borderRadius: BorderRadius.circular(14),
                               ),
-                              child: Container(
-                                decoration: BoxDecoration(
-                                  color: const Color(0xFF0B4A7A),
-                                  borderRadius: BorderRadius.circular(14),
-                                ),
-                                child: Row(
-                                  children: [
+                              child: Row(
+                                children: [
+                                  _headerCell(
+                                    'STUDENTS',
+                                    width: _statisticsStudentColumnWidth,
+                                    alignment: Alignment.centerLeft,
+                                  ),
+                                  const SizedBox(width: _statisticsColumnGap),
+                                  for (final column in enabledColumns) ...[
                                     _headerCell(
-                                      'STUDENTS',
-                                      width: _statisticsStudentColumnWidth,
-                                      alignment: Alignment.centerLeft,
+                                      column.labelController.text.trim().isEmpty
+                                          ? column.key.toUpperCase()
+                                          : column.labelController.text.trim(),
+                                      width: _statisticsScoreColumnWidth,
+                                      subtitle: column.maxValue.toString(),
                                     ),
                                     const SizedBox(width: _statisticsColumnGap),
-                                    for (final column in enabledColumns) ...[
-                                      _headerCell(
-                                        column.labelController.text
-                                                .trim()
-                                                .isEmpty
-                                            ? column.key.toUpperCase()
-                                            : column.labelController.text
-                                                  .trim(),
-                                        width: _statisticsScoreColumnWidth,
-                                        subtitle: column.maxValue.toString(),
-                                      ),
-                                      const SizedBox(
-                                        width: _statisticsColumnGap,
-                                      ),
-                                    ],
-                                    _headerCell(
-                                      'TOT',
-                                      width: _statisticsTotalColumnWidth,
-                                      subtitle: _maxTotal.toString(),
-                                    ),
-                                    if (_gradingEnabled) ...[
-                                      const SizedBox(
-                                        width: _statisticsColumnGap,
-                                      ),
-                                      _headerCell(
-                                        'PCT',
-                                        width: _statisticsPercentColumnWidth,
-                                        subtitle: '100%',
-                                      ),
-                                      const SizedBox(
-                                        width: _statisticsColumnGap,
-                                      ),
-                                      _headerCell(
-                                        'FB',
-                                        width: _statisticsFeedbackColumnWidth,
-                                      ),
-                                    ],
                                   ],
-                                ),
+                                  _headerCell(
+                                    'TOT',
+                                    width: _statisticsTotalColumnWidth,
+                                    subtitle: _maxTotal.toString(),
+                                  ),
+                                  if (_gradingEnabled) ...[
+                                    const SizedBox(width: _statisticsColumnGap),
+                                    _headerCell(
+                                      'PCT',
+                                      width: _statisticsPercentColumnWidth,
+                                      subtitle: '100%',
+                                    ),
+                                    const SizedBox(width: _statisticsColumnGap),
+                                    _headerCell(
+                                      'FB',
+                                      width: _statisticsFeedbackColumnWidth,
+                                    ),
+                                  ],
+                                ],
                               ),
+                            ),
+                            const SizedBox(height: 8),
+                            if (widget.students.isEmpty)
+                              Padding(
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 36,
+                                ),
+                                child: Center(
+                                  child: Text(
+                                    'Bu dars uchun o\'quvchilar topilmadi',
+                                    style: const TextStyle(
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w700,
+                                      color: Color(0xFF64748B),
                                     ),
-                                    const SizedBox(height: 8),
-                                    Expanded(
-                                      child: widget.students.isEmpty
-                                  ? const Center(
-                                      child: Text(
-                                        'Bu dars uchun o\'quvchilar topilmadi',
-                                        style: TextStyle(
-                                          fontSize: 13,
-                                          fontWeight: FontWeight.w700,
-                                          color: Color(0xFF64748B),
-                                        ),
-                                      ),
-                                    )
-                                          : ListView(
-                                              padding: const EdgeInsets.fromLTRB(
-                                                16,
-                                                0,
-                                                16,
-                                                16,
-                                              ),
-                                              children: [
-                                                for (
-                                                  var i = 0;
-                                                  i < widget.students.length;
-                                                  i++
-                                                )
-                                                  _studentRow(i, layout),
-                                              ],
-                                            ),
-                                    ),
+                                  ),
+                                ),
+                              )
+                            else
+                              Column(
+                                children: [
+                                  for (var i = 0;
+                                      i < widget.students.length;
+                                      i++)
+                                    _studentRow(i, layout),
+                                ],
+                              ),
                           ],
                         ),
                       ),
-                    );
-                  },
+                    ),
+                  ),
                 ),
               ),
-              Padding(
-                padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+              Container(
+                padding: EdgeInsets.fromLTRB(
+                  16,
+                  10,
+                  16,
+                  16 +
+                      (widget.fullScreen
+                          ? 0
+                          : MediaQuery.of(context).viewInsets.bottom),
+                ),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF6F7FB),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.04),
+                      blurRadius: 18,
+                      offset: const Offset(0, -4),
+                    ),
+                  ],
+                ),
                 child: Row(
                   children: [
                     Expanded(
@@ -2818,8 +2760,28 @@ class _LessonStatisticsEditorSheetState
                 ),
               ),
             ],
-          ),
-        ),
+          );
+        },
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (widget.fullScreen) {
+      return Scaffold(
+        backgroundColor: const Color(0xFFF6F7FB),
+        body: _buildEditorContent(context),
+      );
+    }
+
+    return FractionallySizedBox(
+      heightFactor: 1.0,
+      child: Material(
+        color: const Color(0xFFF6F7FB),
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+        clipBehavior: Clip.antiAlias,
+        child: _buildEditorContent(context),
       ),
     );
   }

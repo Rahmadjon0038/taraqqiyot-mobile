@@ -10,8 +10,10 @@ import '../features/home/presentation/pages/role_aware_home_page.dart';
 import '../features/notifications/presentation/notification_detail_page.dart';
 import '../core/localization/app_language.dart';
 import '../features/profile/data/avatar_library_service.dart';
+import '../core/services/app_update_service.dart';
 import '../core/services/notification_service.dart';
 import '../core/navigation/app_route_observer.dart';
+import '../core/widgets/app_update_dialog.dart';
 import 'theme/app_theme.dart';
 
 class TaraqqiyotApp extends StatefulWidget {
@@ -27,11 +29,14 @@ class _TaraqqiyotAppState extends State<TaraqqiyotApp> {
   final AvatarLibraryService _avatarLibraryService =
       const AvatarLibraryService();
   final AppLanguageController _languageController = AppLanguageController('uz');
+  final AppUpdateService _appUpdateService = AppUpdateService();
 
   AuthSession? _session;
   bool _bootstrapping = true;
   bool _startedBootstrap = false;
   bool _scheduledNotificationFlush = false;
+  AppUpdateInfo? _updateInfo;
+  bool _updateDialogShown = false;
 
   @override
   void initState() {
@@ -47,7 +52,20 @@ class _TaraqqiyotAppState extends State<TaraqqiyotApp> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       _restoreSession();
+      _checkAppUpdate();
     });
+  }
+
+  Future<void> _checkAppUpdate() async {
+    try {
+      final info = await _appUpdateService.checkForUpdate();
+      if (!mounted || !info.updateAvailable) return;
+      setState(() {
+        _updateInfo = info;
+      });
+    } catch (_) {
+      // Versiya tekshiruvi muvaffaqiyatsiz bo'lsa ham ilova ishlayveradi
+    }
   }
 
   Future<void> _restoreSession() async {
@@ -161,6 +179,7 @@ class _TaraqqiyotAppState extends State<TaraqqiyotApp> {
   @override
   void dispose() {
     _languageController.dispose();
+    _appUpdateService.dispose();
     super.dispose();
   }
 
@@ -170,6 +189,17 @@ class _TaraqqiyotAppState extends State<TaraqqiyotApp> {
       _scheduledNotificationFlush = true;
       WidgetsBinding.instance.addPostFrameCallback((_) {
         NotificationService.instance.flushPendingNotification();
+      });
+    }
+
+    final updateInfo = _updateInfo;
+    if (!_bootstrapping && updateInfo != null && !_updateDialogShown) {
+      _updateDialogShown = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        final dialogContext = NotificationService.instance.navigatorKey.currentContext;
+        if (dialogContext != null) {
+          showAppUpdateDialog(dialogContext, updateInfo);
+        }
       });
     }
 

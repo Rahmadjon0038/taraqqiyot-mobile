@@ -224,6 +224,13 @@ class _StudentGroupCard extends StatelessWidget {
                       runSpacing: 6,
                       crossAxisAlignment: WrapCrossAlignment.center,
                       children: [
+                        if (group.isStoppedThisMonth)
+                          _StatChip(
+                            icon: Icons.pause_circle_filled_rounded,
+                            label: 'To\'xtatgan',
+                            background: const Color(0xFFFFF4D6),
+                            foreground: const Color(0xFFB45309),
+                          ),
                         _StatChip(
                           icon: Icons.star_rounded,
                           label: '${group.monthlyPoints} ball',

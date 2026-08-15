@@ -176,6 +176,7 @@ class StudentGroupSummary {
     required this.totalStudents,
     required this.createdDate,
     required this.myStatus,
+    required this.monthlyStatus,
     required this.myJoinDate,
     required this.myLeaveDate,
     required this.monthlyPoints,
@@ -202,6 +203,10 @@ class StudentGroupSummary {
   final int totalStudents;
   final String createdDate;
   final String myStatus;
+
+  /// Shu oy uchun haqiqiy holat — davomatdan to'xtatilgan bo'lsa,
+  /// a'zolik (myStatus) hali "active" bo'lsa ham bu "stopped" bo'ladi.
+  final String monthlyStatus;
   final String myJoinDate;
   final String myLeaveDate;
   final int monthlyPoints;
@@ -234,6 +239,9 @@ class StudentGroupSummary {
   bool get isStopped => myStatus == 'stopped';
   bool get isFinished => myStatus == 'finished';
 
+  /// Shu oyda davomatdan to'xtatilganmi (a'zolik faol bo'lsa ham).
+  bool get isStoppedThisMonth => monthlyStatus == 'stopped';
+
   factory StudentGroupSummary.fromJson(Map<String, dynamic> json) {
     final groupInfo = Map<String, dynamic>.from(
       json['group_info'] as Map? ?? const {},
@@ -250,6 +258,8 @@ class StudentGroupSummary {
     final myStatus = Map<String, dynamic>.from(
       json['my_status'] as Map? ?? const {},
     );
+    final membershipStatus = _asString(myStatus['status']);
+    final rawMonthlyStatus = _asString(myStatus['monthly_status']);
 
     return StudentGroupSummary(
       groupId: _asInt(groupInfo['id']),
@@ -265,7 +275,10 @@ class StudentGroupSummary {
       startDate: _asString(groupInfo['start_date']),
       totalStudents: _asInt(groupInfo['total_students']),
       createdDate: _asString(groupInfo['created_date']),
-      myStatus: _asString(myStatus['status']),
+      myStatus: membershipStatus,
+      monthlyStatus: rawMonthlyStatus.isNotEmpty
+          ? rawMonthlyStatus
+          : membershipStatus,
       myJoinDate: _asString(myStatus['join_date']),
       myLeaveDate: _asString(myStatus['leave_date']),
       monthlyPoints: _asInt(groupInfo['monthly_points']),
@@ -736,6 +749,7 @@ class StudentPointReportsData {
     required this.month,
     required this.summary,
     required this.breakdown,
+    required this.subjectBreakdown,
     required this.monthlyBreakdown,
     required this.teacherBreakdown,
     required this.dailyBreakdown,
@@ -745,6 +759,9 @@ class StudentPointReportsData {
   final String month;
   final StudentPointSummary summary;
   final List<StudentPointBreakdown> breakdown;
+
+  /// Fan (subject) kesimida jami ball — guruhlar aralashib ketmasligi uchun
+  final List<StudentPointSubjectBreakdown> subjectBreakdown;
 
   /// Oyma-oy jami ball (month='all' so'rovida to'ladi)
   final List<StudentPointMonthlyBreakdown> monthlyBreakdown;
@@ -760,6 +777,7 @@ class StudentPointReportsData {
       json['summary'] as Map? ?? const {},
     );
     final breakdownRaw = json['breakdown'];
+    final subjectBreakdownRaw = json['subject_breakdown'];
     final monthlyBreakdownRaw = json['monthly_breakdown'];
     final teacherBreakdownRaw = json['teacher_breakdown'];
     final dailyBreakdownRaw = json['daily_breakdown'];
@@ -778,6 +796,16 @@ class StudentPointReportsData {
                 )
                 .toList()
           : const <StudentPointBreakdown>[],
+      subjectBreakdown: subjectBreakdownRaw is List
+          ? subjectBreakdownRaw
+                .whereType<Map>()
+                .map(
+                  (item) => StudentPointSubjectBreakdown.fromJson(
+                    Map<String, dynamic>.from(item),
+                  ),
+                )
+                .toList()
+          : const <StudentPointSubjectBreakdown>[],
       monthlyBreakdown: monthlyBreakdownRaw is List
           ? monthlyBreakdownRaw
                 .whereType<Map>()
@@ -848,6 +876,7 @@ class StudentPointMonthlyBreakdown {
 class StudentPointTeacherBreakdown {
   const StudentPointTeacherBreakdown({
     required this.monthName,
+    required this.subjectName,
     required this.teacherId,
     required this.teacherName,
     required this.totalPoints,
@@ -856,6 +885,7 @@ class StudentPointTeacherBreakdown {
 
   /// YYYY-MM formatida
   final String monthName;
+  final String subjectName;
   final int? teacherId;
   final String teacherName;
   final int totalPoints;
@@ -864,8 +894,31 @@ class StudentPointTeacherBreakdown {
   factory StudentPointTeacherBreakdown.fromJson(Map<String, dynamic> json) {
     return StudentPointTeacherBreakdown(
       monthName: _asString(json['month_name']),
+      subjectName: _asString(json['subject_name']),
       teacherId: json['teacher_id'] == null ? null : _asInt(json['teacher_id']),
       teacherName: _asString(json['teacher_name']),
+      totalPoints: _asInt(json['total_points']),
+      totalEvents: _asInt(json['total_events']),
+    );
+  }
+}
+
+/// Fan (subject) kesimida jami ball — guruhlar bo'yicha aralashib qolgan
+/// ballarni o'quvchiga aniq fan nomi bilan alohida ko'rsatish uchun
+class StudentPointSubjectBreakdown {
+  const StudentPointSubjectBreakdown({
+    required this.subjectName,
+    required this.totalPoints,
+    required this.totalEvents,
+  });
+
+  final String subjectName;
+  final int totalPoints;
+  final int totalEvents;
+
+  factory StudentPointSubjectBreakdown.fromJson(Map<String, dynamic> json) {
+    return StudentPointSubjectBreakdown(
+      subjectName: _asString(json['subject_name']),
       totalPoints: _asInt(json['total_points']),
       totalEvents: _asInt(json['total_events']),
     );
@@ -914,12 +967,14 @@ class StudentPointBreakdown {
   const StudentPointBreakdown({
     required this.groupId,
     required this.groupName,
+    required this.subjectName,
     required this.totalPoints,
     required this.totalEvents,
   });
 
   final int? groupId;
   final String groupName;
+  final String subjectName;
   final int totalPoints;
   final int totalEvents;
 
@@ -927,6 +982,7 @@ class StudentPointBreakdown {
     return StudentPointBreakdown(
       groupId: json['group_id'] == null ? null : _asInt(json['group_id']),
       groupName: _asString(json['group_name']),
+      subjectName: _asString(json['subject_name']),
       totalPoints: _asInt(json['total_points']),
       totalEvents: _asInt(json['total_events']),
     );
@@ -938,6 +994,7 @@ class StudentPointEvent {
     required this.id,
     required this.groupId,
     required this.groupName,
+    required this.subjectName,
     required this.lessonId,
     required this.monthName,
     required this.points,
@@ -952,6 +1009,7 @@ class StudentPointEvent {
   final int id;
   final int? groupId;
   final String groupName;
+  final String subjectName;
   final int? lessonId;
   final String monthName;
   final int points;
@@ -967,6 +1025,7 @@ class StudentPointEvent {
       id: _asInt(json['id']),
       groupId: json['group_id'] == null ? null : _asInt(json['group_id']),
       groupName: _asString(json['group_name']),
+      subjectName: _asString(json['subject_name']),
       lessonId: json['lesson_id'] == null ? null : _asInt(json['lesson_id']),
       monthName: _asString(json['month_name']),
       points: _asInt(json['points']),

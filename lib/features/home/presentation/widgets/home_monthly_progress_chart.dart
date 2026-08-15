@@ -330,7 +330,12 @@ class _HomeMonthlyProgressChartState extends State<HomeMonthlyProgressChart> {
                       ],
                     ),
                     const SizedBox(height: 12),
-                    if (spots.length < 2)
+                    // Faqat haqiqatan HECH qanday ball bo'lmasa placeholder
+                    // ko'rsatamiz — bitta kunlik ball bo'lsa ham (chiziq
+                    // chizish uchun 2 nuqta kerak bo'lsa ham) buni "ball
+                    // yo'q" deb noto'g'ri ko'rsatmasligimiz kerak, chunki
+                    // yuqoridagi chipda ball soni allaqachon ko'rinib turibdi.
+                    if (spots.isEmpty)
                       const _ChartPlaceholder(text: 'Bu oyda hali ball yo\'q')
                     else
                       SizedBox(
@@ -423,8 +428,10 @@ class _ProgressLineChart extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final monthName = _uzMonths[DateTime.now().month - 1];
-    final minX = spots.first.x;
-    final maxX = spots.last.x;
+    // Bitta kunlik ball bo'lsa ham nuqta chapga/o'ngga yopishib
+    // qolmasligi uchun X o'qiga sun'iy joy beriladi.
+    final minX = spots.length == 1 ? spots.first.x - 1 : spots.first.x;
+    final maxX = spots.length == 1 ? spots.first.x + 1 : spots.last.x;
     var maxY = 0.0;
     for (final spot in spots) {
       if (spot.y > maxY) maxY = spot.y;

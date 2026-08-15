@@ -31,6 +31,10 @@ class _StudentPointsOverviewPageState extends State<StudentPointsOverviewPage> {
   late final bool _ownsService;
   late Future<StudentPointReportsData> _future;
 
+  /// null — barcha fanlar birgalikda; aks holda faqat shu fanning
+  /// oylik ballari ko'rsatiladi ("Fanlar bo'yicha" kartasini bosib tanlanadi).
+  String? _selectedSubject;
+
   @override
   void initState() {
     super.initState();
@@ -81,6 +85,7 @@ class _StudentPointsOverviewPageState extends State<StudentPointsOverviewPage> {
               groupId: event.groupId,
               groupName:
                   event.groupName.trim().isEmpty ? 'Guruh' : event.groupName,
+              subjectName: event.subjectName,
             ),
           )
           .add(event.points);
@@ -108,6 +113,7 @@ class _StudentPointsOverviewPageState extends State<StudentPointsOverviewPage> {
           (bucket) => StudentPointBreakdown(
             groupId: bucket.groupId,
             groupName: bucket.groupName,
+            subjectName: bucket.subjectName,
             totalPoints: bucket.totalPoints,
             totalEvents: bucket.totalEvents,
           ),
@@ -143,6 +149,7 @@ class _StudentPointsOverviewPageState extends State<StudentPointsOverviewPage> {
       month: data.month,
       summary: data.summary,
       breakdown: breakdown,
+      subjectBreakdown: data.subjectBreakdown,
       monthlyBreakdown: monthlyBreakdown,
       teacherBreakdown: data.teacherBreakdown,
       dailyBreakdown: dailyBreakdown,
@@ -162,6 +169,22 @@ class _StudentPointsOverviewPageState extends State<StudentPointsOverviewPage> {
       (sum, group) => sum + (group.monthlyPoints > 0 ? 1 : 0),
     );
 
+    final subjectMap = <String, _AggregateBucket>{};
+    for (final group in visibleGroups) {
+      final subjectName =
+          group.subjectName.trim().isEmpty ? 'Boshqa' : group.subjectName;
+      subjectMap
+          .putIfAbsent(
+            subjectName,
+            () => _AggregateBucket(
+              groupId: null,
+              groupName: subjectName,
+              subjectName: subjectName,
+            ),
+          )
+          .add(group.monthlyPoints);
+    }
+
     return StudentPointReportsData(
       month: monthKey,
       summary: StudentPointSummary(
@@ -175,11 +198,22 @@ class _StudentPointsOverviewPageState extends State<StudentPointsOverviewPage> {
             (group) => StudentPointBreakdown(
               groupId: group.groupId,
               groupName: group.groupName,
+              subjectName: group.subjectName,
               totalPoints: group.monthlyPoints,
               totalEvents: group.monthlyPoints > 0 ? 1 : 0,
             ),
           )
           .toList(),
+      subjectBreakdown: subjectMap.values
+          .map(
+            (bucket) => StudentPointSubjectBreakdown(
+              subjectName: bucket.subjectName,
+              totalPoints: bucket.totalPoints,
+              totalEvents: bucket.totalEvents,
+            ),
+          )
+          .toList()
+        ..sort((a, b) => b.totalPoints.compareTo(a.totalPoints)),
       monthlyBreakdown: [
         StudentPointMonthlyBreakdown(
           monthName: monthKey,
@@ -191,6 +225,7 @@ class _StudentPointsOverviewPageState extends State<StudentPointsOverviewPage> {
           .map(
             (group) => StudentPointTeacherBreakdown(
               monthName: monthKey,
+              subjectName: group.subjectName,
               teacherId: null,
               teacherName: group.teacherName,
               totalPoints: group.monthlyPoints,
@@ -255,18 +290,41 @@ class _StudentPointsOverviewPageState extends State<StudentPointsOverviewPage> {
             }
 
             final currentMonthKey = _currentMonthKey();
-            final currentMonthPoints = _pointsForMonth(data, currentMonthKey);
-            final months = data.monthlyBreakdown;
+            final selectedSubject = _selectedSubject;
+            final months = selectedSubject == null
+                ? data.monthlyBreakdown
+                : _monthsForSubject(data, selectedSubject);
+            // Fan tanlanganda "Umumiy ball" ham o'sha fanga tegishli
+            // summalarni ko'rsatadi — barcha fanlar aralashib qolmaydi.
+            final currentMonthPoints = _pointsInList(months, currentMonthKey);
+            final totalPoints = selectedSubject == null
+                ? data.summary.totalPoints
+                : _subjectTotal(data, selectedSubject);
 
             return ListView(
               physics: const AlwaysScrollableScrollPhysics(),
               padding: const EdgeInsets.fromLTRB(12, 12, 12, 24),
               children: [
+                if (data.subjectBreakdown.length > 1) ...[
+                  _SubjectBreakdownList(
+                    subjects: data.subjectBreakdown,
+                    selectedSubject: _selectedSubject,
+                    onSelect: (subject) {
+                      setState(() {
+                        _selectedSubject =
+                            _selectedSubject == subject ? null : subject;
+                      });
+                    },
+                  ),
+                  const SizedBox(height: 12),
+                ],
                 _OverviewHero(
-                  title: 'Umumiy ball',
+                  title: selectedSubject == null
+                      ? 'Umumiy ball'
+                      : 'Umumiy ball • $selectedSubject',
                   currentMonthLabel: _monthLabel(currentMonthKey),
                   currentMonthPoints: currentMonthPoints,
-                  totalPoints: data.summary.totalPoints,
+                  totalPoints: totalPoints,
                   sinceLabel: _sinceLabel(data.summary.firstEventDate),
                 ),
                 const SizedBox(height: 16),
@@ -280,12 +338,18 @@ class _StudentPointsOverviewPageState extends State<StudentPointsOverviewPage> {
                         color: Color(0xFF182033),
                       ),
                       const SizedBox(width: 6),
-                      const Text(
-                        'Oylar bo\'yicha',
-                        style: TextStyle(
-                          fontSize: 15,
-                          fontWeight: FontWeight.w900,
-                          color: Color(0xFF182033),
+                      Expanded(
+                        child: Text(
+                          selectedSubject == null
+                              ? 'Oylar bo\'yicha'
+                              : 'Oylar bo\'yicha • $selectedSubject',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w900,
+                            color: Color(0xFF182033),
+                          ),
                         ),
                       ),
                       const SizedBox(width: 6),
@@ -307,7 +371,11 @@ class _StudentPointsOverviewPageState extends State<StudentPointsOverviewPage> {
                   for (var i = 0; i < months.length; i++) ...[
                     _MonthCard(
                       month: months[i],
-                      teachers: _teachersForMonth(data, months[i].monthName),
+                      teachers: _teachersForMonth(
+                        data,
+                        months[i].monthName,
+                        subject: selectedSubject,
+                      ),
                       isCurrent: months[i].monthName == currentMonthKey,
                       onTap: () {
                         Navigator.of(context).push(
@@ -330,21 +398,96 @@ class _StudentPointsOverviewPageState extends State<StudentPointsOverviewPage> {
     );
   }
 
-  static int _pointsForMonth(StudentPointReportsData data, String monthKey) {
-    for (final month in data.monthlyBreakdown) {
+  static int _pointsInList(
+    List<StudentPointMonthlyBreakdown> months,
+    String monthKey,
+  ) {
+    for (final month in months) {
       if (month.monthName == monthKey) return month.totalPoints;
+    }
+    return 0;
+  }
+
+  /// Bitta fanning barcha vaqt davomidagi jami balli
+  /// (data.subjectBreakdown'dan qidiriladi).
+  static int _subjectTotal(StudentPointReportsData data, String subject) {
+    for (final item in data.subjectBreakdown) {
+      if (_normalizedSubject(item.subjectName) == subject) {
+        return item.totalPoints;
+      }
     }
     return 0;
   }
 
   static List<StudentPointTeacherBreakdown> _teachersForMonth(
     StudentPointReportsData data,
-    String monthKey,
-  ) {
+    String monthKey, {
+    String? subject,
+  }) {
     final list = data.teacherBreakdown
-        .where((teacher) => teacher.monthName == monthKey)
+        .where(
+          (teacher) =>
+              teacher.monthName == monthKey &&
+              (subject == null || _normalizedSubject(teacher.subjectName) == subject),
+        )
         .toList();
     list.sort((a, b) => b.totalPoints.compareTo(a.totalPoints));
+    return list;
+  }
+
+  /// Bo'sh fan nomini "Boshqa" ga tenglaydi — backend/fallback tomonida
+  /// ham xuddi shu qoida ishlatiladi (StudentPointSubjectBreakdown).
+  static String _normalizedSubject(String raw) {
+    final trimmed = raw.trim();
+    return trimmed.isEmpty ? 'Boshqa' : trimmed;
+  }
+
+  /// Faqat bitta fanga tegishli oylik ballar — talaba "Fanlar bo'yicha"
+  /// kartasidan birini tanlaganda shu fanning oyma-oy tarixi ko'rsatiladi.
+  static List<StudentPointMonthlyBreakdown> _monthsForSubject(
+    StudentPointReportsData data,
+    String subject,
+  ) {
+    // API xato bo'lib, fallback (guruhlar ro'yxatidan qurilgan) ma'lumot
+    // ishlatilganda alohida hodisalar (events) yo'q — shu holatda faqat
+    // joriy oy uchun guruh kesimidagi (breakdown) summalardan foydalanamiz.
+    if (data.events.isEmpty) {
+      final matches = data.breakdown.where(
+        (item) => _normalizedSubject(item.subjectName) == subject,
+      );
+      final totalPoints = matches.fold<int>(0, (sum, item) => sum + item.totalPoints);
+      final totalEvents = matches.fold<int>(0, (sum, item) => sum + item.totalEvents);
+      if (totalPoints == 0 && totalEvents == 0) return const [];
+      return [
+        StudentPointMonthlyBreakdown(
+          monthName: data.month,
+          totalPoints: totalPoints,
+          totalEvents: totalEvents,
+        ),
+      ];
+    }
+
+    final map = <String, _AggregateBucket>{};
+    for (final event in data.events) {
+      if (_normalizedSubject(event.subjectName) != subject) continue;
+      final monthKey = _eventMonthKey(event);
+      map
+          .putIfAbsent(
+            monthKey,
+            () => _AggregateBucket(groupId: null, groupName: monthKey),
+          )
+          .add(event.points);
+    }
+    final list = map.values
+        .map(
+          (bucket) => StudentPointMonthlyBreakdown(
+            monthName: bucket.groupName,
+            totalPoints: bucket.totalPoints,
+            totalEvents: bucket.totalEvents,
+          ),
+        )
+        .toList()
+      ..sort((a, b) => b.monthName.compareTo(a.monthName));
     return list;
   }
 
@@ -376,10 +519,12 @@ class _AggregateBucket {
   _AggregateBucket({
     required this.groupId,
     required this.groupName,
+    this.subjectName = '',
   });
 
   final int? groupId;
   final String groupName;
+  final String subjectName;
   int totalPoints = 0;
   int totalEvents = 0;
 
@@ -575,6 +720,123 @@ class _HeroStat extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+/// Har bir fan (subject) bo'yicha filtr chip'lari — guruhlar aralashib
+/// ketmasligi uchun. Bittasi tanlansa, yuqoridagi "Umumiy ball" va
+/// pastdagi "Oylar bo'yicha" ro'yxati faqat o'sha fan bo'yicha ko'rsatiladi.
+class _SubjectBreakdownList extends StatelessWidget {
+  const _SubjectBreakdownList({
+    required this.subjects,
+    required this.selectedSubject,
+    required this.onSelect,
+  });
+
+  final List<StudentPointSubjectBreakdown> subjects;
+  final String? selectedSubject;
+  final ValueChanged<String> onSelect;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: 38,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(horizontal: 2),
+        itemCount: subjects.length + 1,
+        separatorBuilder: (context, index) => const SizedBox(width: 8),
+        itemBuilder: (context, index) {
+          if (index == 0) {
+            return _SubjectChip(
+              name: 'Barchasi',
+              points: null,
+              selected: selectedSubject == null,
+              onTap: () {
+                if (selectedSubject != null) onSelect(selectedSubject!);
+              },
+            );
+          }
+          final subject = subjects[index - 1];
+          final name = subject.subjectName.trim().isEmpty
+              ? 'Boshqa'
+              : subject.subjectName.trim();
+          return _SubjectChip(
+            name: name,
+            points: subject.totalPoints,
+            selected: selectedSubject == name,
+            onTap: () => onSelect(name),
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _SubjectChip extends StatelessWidget {
+  const _SubjectChip({
+    required this.name,
+    required this.points,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final String name;
+
+  /// null bo'lsa — "Barchasi" chipi, ball ko'rsatilmaydi
+  final int? points;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final points = this.points;
+    final positive = points == null || points >= 0;
+    final foreground = selected ? Colors.white : const Color(0xFF4A5468);
+    final pointsColor = selected ? Colors.white : AppTheme.brandColor;
+
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(16),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 180),
+        padding: const EdgeInsets.symmetric(horizontal: 14),
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          color: selected ? AppTheme.brandColor : Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: selected ? AppTheme.brandColor : const Color(0xFFD4DAE6),
+          ),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              name,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w800,
+                color: foreground,
+              ),
+            ),
+            if (points != null) ...[
+              const SizedBox(width: 5),
+              Text(
+                positive ? '+$points' : '$points',
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w900,
+                  color: pointsColor,
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
     );
   }
 }
@@ -785,7 +1047,11 @@ class _TeacherRow extends StatelessWidget {
                 ),
               ),
               Text(
-                'O\'qituvchi',
+                teacher.subjectName.trim().isEmpty
+                    ? 'O\'qituvchi'
+                    : teacher.subjectName.trim(),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
                 style: TextStyle(
                   fontSize: 10,
                   fontWeight: FontWeight.w600,

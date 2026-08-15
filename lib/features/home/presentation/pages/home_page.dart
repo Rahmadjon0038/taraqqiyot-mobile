@@ -1205,12 +1205,20 @@ class _SubjectPaymentSummary {
     required this.totalRequired,
     required this.totalPaid,
     required this.totalDebt,
+    required this.groupCount,
+    required this.stoppedGroupCount,
   });
 
   final String subjectName;
   final double totalRequired;
   final double totalPaid;
   final double totalDebt;
+  final int groupCount;
+  final int stoppedGroupCount;
+
+  /// Shu fandagi barcha guruhlar davomatdan to'xtatilgan bo'lsa true —
+  /// shunda to'lov holati o'rniga "To'xtatgan" ko'rsatiladi.
+  bool get allStopped => groupCount > 0 && stoppedGroupCount == groupCount;
 }
 
 /// Talabaning to'lov yozuvlarini (enrollments) fan nomi bo'yicha
@@ -1227,6 +1235,7 @@ List<_SubjectPaymentSummary> _groupBySubject(
         ? enrollment.subjectName.trim()
         : enrollment.groupName.trim();
     if (key.isEmpty) continue;
+    final isStopped = enrollment.monthlyStatus == 'stopped';
     final existing = totals[key];
     if (existing == null) {
       order.add(key);
@@ -1235,6 +1244,8 @@ List<_SubjectPaymentSummary> _groupBySubject(
         totalRequired: enrollment.requiredAmount,
         totalPaid: enrollment.paidAmount,
         totalDebt: enrollment.debtAmount,
+        groupCount: 1,
+        stoppedGroupCount: isStopped ? 1 : 0,
       );
     } else {
       totals[key] = _SubjectPaymentSummary(
@@ -1242,6 +1253,8 @@ List<_SubjectPaymentSummary> _groupBySubject(
         totalRequired: existing.totalRequired + enrollment.requiredAmount,
         totalPaid: existing.totalPaid + enrollment.paidAmount,
         totalDebt: existing.totalDebt + enrollment.debtAmount,
+        groupCount: existing.groupCount + 1,
+        stoppedGroupCount: existing.stoppedGroupCount + (isStopped ? 1 : 0),
       );
     }
   }
@@ -1261,7 +1274,12 @@ class _SubjectPaymentRow extends StatelessWidget {
     final paid = summary.totalPaid;
     final String statusText;
     final Color statusColor;
-    if (summary.totalRequired <= 0) {
+    if (summary.allStopped) {
+      // Guruh(lar) shu oyda davomatdan to'xtatilgan — bu holat
+      // to'langan/to'lanmagan belgisidan ustun turadi.
+      statusText = 'To\'xtatgan';
+      statusColor = const Color(0xFFB45309);
+    } else if (summary.totalRequired <= 0) {
       statusText = 'Belgilanmagan';
       statusColor = const Color(0xFF8A93A5);
     } else if (debt <= 0) {
